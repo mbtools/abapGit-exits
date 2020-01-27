@@ -269,7 +269,7 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
 
     LOOP AT lt_interfaces ASSIGNING <interface>.
       SELECT cmpname FROM seocompodf INTO lv_method
-        WHERE clsname = <interface> AND editorder > 0 ORDER BY editorder.
+        WHERE clsname = <interface> AND alias = abap_false ORDER BY editorder.
 
         IF <interface> <> is_class_key-clsname.
           CONCATENATE <interface> '~' lv_method INTO lv_method.
@@ -287,7 +287,7 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
 
       ENDSELECT.
     ENDLOOP.
-*
+
     LOOP AT lt_includes ASSIGNING <include>.
       READ REPORT <include> INTO lt_source.
       IF sy-subrc <> 0.
