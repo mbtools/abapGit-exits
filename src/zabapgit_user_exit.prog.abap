@@ -1,5 +1,4 @@
 CLASS zcl_abapgit_user_exit DEFINITION
-  PUBLIC
   FINAL
   CREATE PUBLIC.
 
@@ -15,36 +14,83 @@ ENDCLASS.
 CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
 
-  METHOD zif_abapgit_exit~change_local_host.
-
-  ENDMETHOD.
-
-
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~ALLOW_SAP_OBJECTS
+* +-------------------------------------------------------------------------------------------------+
+* | [<-()] RV_ALLOWED                     TYPE        ABAP_BOOL
+* +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~allow_sap_objects.
 
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_exit~change_proxy_url.
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CHANGE_LOCAL_HOST
+* +-------------------------------------------------------------------------------------------------+
+* | [<-->] CT_HOSTS                       TYPE        TY_ICM_SINFO2_TT
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~change_local_host.
 
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_exit~change_proxy_port.
-
-  ENDMETHOD.
-
-
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CHANGE_PROXY_AUTHENTICATION
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_REPO_URL                    TYPE        CSEQUENCE
+* | [<-->] CV_PROXY_AUTHENTICATION        TYPE        ABAP_BOOL
+* +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~change_proxy_authentication.
 
   ENDMETHOD.
 
 
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CHANGE_PROXY_PORT
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_REPO_URL                    TYPE        CSEQUENCE
+* | [<-->] CV_PROXY_PORT                  TYPE        STRING
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~change_proxy_port.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CHANGE_PROXY_URL
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_REPO_URL                    TYPE        CSEQUENCE
+* | [<-->] CV_PROXY_URL                   TYPE        STRING
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~change_proxy_url.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CHANGE_TADIR
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_PACKAGE                     TYPE        DEVCLASS
+* | [--->] II_LOG                         TYPE REF TO ZIF_ABAPGIT_LOG
+* | [<-->] CT_TADIR                       TYPE        ZIF_ABAPGIT_DEFINITIONS=>TY_TADIR_TT
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~change_tadir.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CREATE_HTTP_CLIENT
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_URL                         TYPE        STRING
+* | [<-()] RI_CLIENT                      TYPE REF TO IF_HTTP_CLIENT
+* | [!CX!] ZCX_ABAPGIT_EXCEPTION
+* +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~create_http_client.
 
     DATA:
-       lv_host        TYPE string,
-       lv_destination TYPE rfcdest.
+      lv_host        TYPE string,
+      lv_destination TYPE rfcdest.
 
     lv_host = zcl_abapgit_url=>host( iv_url ).
 
@@ -70,7 +116,6 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
         plugin_not_active        = 4
         internal_error           = 5
         OTHERS                   = 6 ).
-
     IF sy-subrc <> 0.
       zcx_abapgit_exception=>raise_t100(  ).
     ENDIF.
@@ -78,21 +123,13 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_exit~http_client.
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_exit~change_tadir.
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_exit~get_ssl_id.
-
-  ENDMETHOD.
-
-
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CUSTOM_SERIALIZE_ABAP_CLIF
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IS_CLASS_KEY                   TYPE        SEOCLSKEY
+* | [<-()] RT_SOURCE                      TYPE        ZIF_ABAPGIT_DEFINITIONS=>TY_STRING_TT
+* | [!CX!] ZCX_ABAPGIT_EXCEPTION
+* +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~custom_serialize_abap_clif.
 
     CONSTANTS:
@@ -392,6 +429,27 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
     lv_source = 'ENDCLASS.'.
     INSERT lv_source INTO TABLE rt_source.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~GET_SSL_ID
+* +-------------------------------------------------------------------------------------------------+
+* | [<-()] RV_SSL_ID                      TYPE        SSFAPPLSSL
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~get_ssl_id.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~HTTP_CLIENT
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_URL                         TYPE        STRING
+* | [--->] II_CLIENT                      TYPE REF TO IF_HTTP_CLIENT
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~http_client.
 
   ENDMETHOD.
 ENDCLASS.
