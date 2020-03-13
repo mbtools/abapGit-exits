@@ -185,6 +185,8 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
       <include>     TYPE programm,
       <clif>        TYPE ty_clif.
 
+    RETURN.  ">>>>>>>>>>>>>>>>>>>
+
 *   Only for certain objects
     lv_obj_name = is_class_key-clsname.
 

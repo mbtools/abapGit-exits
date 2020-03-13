@@ -12,12 +12,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_abapgit_user_exit IMPLEMENTATION.
-
-
-  METHOD zif_abapgit_exit~change_local_host.
-
-  ENDMETHOD.
+CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
 
 
   METHOD zif_abapgit_exit~allow_sap_objects.
@@ -25,7 +20,12 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_exit~change_proxy_url.
+  METHOD zif_abapgit_exit~change_local_host.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~change_proxy_authentication.
 
   ENDMETHOD.
 
@@ -35,7 +35,12 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_exit~change_proxy_authentication.
+  METHOD zif_abapgit_exit~change_proxy_url.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~change_tadir.
 
   ENDMETHOD.
 
@@ -74,21 +79,6 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
     IF sy-subrc <> 0.
       zcx_abapgit_exception=>raise_t100(  ).
     ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_exit~http_client.
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_exit~change_tadir.
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_exit~get_ssl_id.
 
   ENDMETHOD.
 
@@ -147,6 +137,8 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
       <method_incl> TYPE LINE OF seop_methods_w_include,
       <include>     TYPE programm,
       <clif>        TYPE ty_clif.
+
+    RETURN. ">>>>>>>>>>>>>>>>
 
 *   Only for certain objects
     lv_obj_name = is_class_key-clsname.
@@ -392,6 +384,16 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
     lv_source = 'ENDCLASS.'.
     INSERT lv_source INTO TABLE rt_source.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~get_ssl_id.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~http_client.
 
   ENDMETHOD.
 ENDCLASS.
