@@ -86,12 +86,17 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
   METHOD zif_abapgit_exit~custom_serialize_abap_clif.
 
     CONSTANTS:
+      c_publ TYPE string VALUE '*"* public components of class',
+      c_prot TYPE string VALUE '*"* protected components of class',
+      c_priv TYPE string VALUE '*"* private components of class',
+      c_cmnt TYPE string VALUE '*"* do not include other source files here!!!',
       c_version_active TYPE seoversion VALUE '1',
       c_clstype_if     TYPE seoclstype VALUE '1',
       c_clstype_cl     TYPE seoclstype VALUE '0',
       c_reltype_if     TYPE seoreltype VALUE '1',
       c_reltype_cl     TYPE seoreltype VALUE '2',
-      c_cmptype_method TYPE seocmptype VALUE '1'.
+      c_cmptype_method TYPE seocmptype VALUE '1',
+      c_exposure_priv  TYPE seoexpose  VALUE '0'.
 
     TYPES:
       BEGIN OF ty_inheritance,
@@ -100,17 +105,25 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
       END OF ty_inheritance,
       BEGIN OF ty_clif,
         clsname   TYPE seoclsname,
-        clstype   TYPE seoclass-clstype,
-      END OF ty_clif.
+        clstype   TYPE seoclstype,
+      END OF ty_clif,
+      BEGIN OF ty_method,
+        clsname   TYPE seoclsname,
+        cpdname   TYPE seocpdname,
+        exposure  TYPE seoexpose,
+      END OF ty_method.
 
     DATA:
+      lv_clsname       TYPE seoclsname,
+      lv_obj_name      TYPE tadir-obj_name,
+      li_package       TYPE REF TO zif_abapgit_sap_package,
+      lt_super_package TYPE zif_abapgit_sap_package=>ty_devclass_tt,
+      lv_package       TYPE devclass,
+      lt_package_range TYPE RANGE OF devclass,
+      ls_package_range LIKE LINE OF lt_package_range,
       lo_source        TYPE REF TO cl_oo_source,
       lv_begin         TYPE string,
       lv_end           TYPE string,
-      lv_publ          TYPE string,
-      lv_prot          TYPE string,
-      lv_priv          TYPE string,
-      lv_cmnt          TYPE string,
       lv_remove        TYPE abap_bool,
       lv_tabix         TYPE sy-tabix,
       lv_eof_def       TYPE sy-tabix,
@@ -121,29 +134,20 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
       lt_inheritance   TYPE TABLE OF ty_inheritance,
       ls_clif          TYPE ty_clif,
       lt_clif          TYPE TABLE OF ty_clif,
-      lv_method        TYPE string,
+      ls_alias         TYPE ty_method,
+      ls_method        TYPE ty_method,
+      lt_method        TYPE TABLE OF ty_method,
+      lv_count_incl    TYPE i,
       ls_method_incl   TYPE seocpdkey,
-      lt_method_incl   TYPE seop_methods_w_include,
-      lt_includes      TYPE TABLE OF programm,
-      lv_obj_name      TYPE tadir-obj_name,
-      li_package       TYPE REF TO zif_abapgit_sap_package,
-      lt_super_package TYPE zif_abapgit_sap_package=>ty_devclass_tt,
-      lv_package       TYPE devclass,
-      lt_package_range TYPE RANGE OF devclass,
-      ls_package_range LIKE LINE OF lt_package_range.
+      lt_method_incl   TYPE seop_methods_w_include.
 
     FIELD-SYMBOLS:
       <source>      TYPE string,
-      <method_incl> TYPE LINE OF seop_methods_w_include,
-      <include>     TYPE programm,
-      <clif>        TYPE ty_clif.
+      <clif>        TYPE ty_clif,
+      <method>      TYPE ty_method,
+      <method_incl> TYPE LINE OF seop_methods_w_include.
 
-    RETURN. ">>>>>>>>>>>>>>>>
-
-*   Only for certain objects
-    lv_obj_name = is_class_key-clsname.
-
-**  CHECK lv_obj_name = 'ZCL_TEST_METHOD_ORDER'.
+    lv_clsname = is_class_key-clsname.
 
 *   Only for some packages / super packages
     ls_package_range-sign   = 'I'.
@@ -152,6 +156,8 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
     APPEND ls_package_range TO lt_package_range.
     ls_package_range-low    = '$MBT*'.
     APPEND ls_package_range TO lt_package_range.
+
+    lv_obj_name = is_class_key-clsname.
 
     lv_package = zcl_abapgit_factory=>get_tadir( )->get_object_package(
       iv_object   = 'CLAS'
@@ -185,7 +191,7 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
     lo_source->read( 'A' ).
     lt_source = lo_source->get_old_source( ).
 
-*   Remove signatures and default comments
+*   1) Remove signatures and default comments
     CONCATENATE '* <SIGNATURE>------------------------------------'
       '---------------------------------------------------+'
       INTO lv_begin.
@@ -194,14 +200,9 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
       '--------------------------------------</SIGNATURE>'
       INTO lv_end.
 
-    lv_publ = '*"* public components of class'.
-    lv_prot = '*"* protected components of class'.
-    lv_priv = '*"* private components of class'.
-    lv_cmnt = '*"* do not include other source files here!!!'.
-
     lv_remove = abap_false.
     LOOP AT lt_source ASSIGNING <source>.
-      IF <source> CS lv_publ OR <source> CS lv_prot OR <source> CS lv_priv OR <source> = lv_cmnt.
+      IF <source> CS c_publ OR <source> CS c_prot OR <source> CS c_priv OR <source> = c_cmnt.
         CONTINUE.
       ENDIF.
       IF <source> = lv_begin.
@@ -215,7 +216,7 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-**   Remove empty class sections
+**   2) Remove empty class sections
 *    DO 3 TIMES.
 *      CASE sy-index.
 *        WHEN 1.
@@ -252,7 +253,7 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
 *      ENDIF.
 *    ENDDO.
 
-*   Change class identifier to lower case
+*   3) Change class identifier to lower case
     CLEAR lv_eof_def.
     LOOP AT lt_source_temp ASSIGNING <source>
       WHERE table_line CP 'CLASS * IMPLEMENTATION.' OR table_line CP 'CLASS * DEFINITION'.
@@ -266,28 +267,16 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-*   Re-order method implementations
+*   4) Re-order method implementations
     CLEAR: rt_source.
 
     LOOP AT lt_source_temp ASSIGNING <source> TO lv_eof_def.
       INSERT <source> INTO TABLE rt_source.
     ENDLOOP.
 
-*   Mapping from methods to includes
-    CALL METHOD cl_oo_classname_service=>get_all_method_includes
-      EXPORTING
-        clsname            = is_class_key-clsname
-      RECEIVING
-        result             = lt_method_incl
-      EXCEPTIONS
-        class_not_existing = 1.
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, class { is_class_key-clsname }| ).
-    ENDIF.
-
 *   Classes in order of inheritance
     ls_inheritance-editorder = 1.
-    ls_inheritance-clsname = is_class_key-clsname.
+    ls_inheritance-clsname = lv_clsname.
     DO.
       APPEND ls_inheritance TO lt_inheritance.
 
@@ -327,52 +316,79 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
     ENDLOOP.
 
 *   Methods per interface in edit order
-    CLEAR lt_includes.
+    CLEAR lt_method.
     LOOP AT lt_clif ASSIGNING <clif>.
 
-      SELECT a~cmpname INTO lv_method
+      SELECT a~clsname a~cmpname b~exposure INTO ls_method
         FROM seocompo AS a JOIN seocompodf AS b
         ON a~clsname = b~clsname AND a~cmpname = b~cmpname
-        WHERE a~clsname = <clif>
+        WHERE a~clsname = <clif>-clsname
           AND a~cmptype = c_cmptype_method
+          AND b~version = c_version_active
           AND b~alias   = abap_false
         ORDER BY b~editorder.
 
-*       Constructor is not inherited
-        IF lv_method = 'CONSTRUCTOR' AND <clif>-clsname <> is_class_key-clsname.
-          CONTINUE.
+*       Check inheritance
+        IF ls_method-clsname <> lv_clsname.
+*         Ignore constructors
+          IF ls_method-cpdname = 'CONSTRUCTOR' OR ls_method-cpdname = 'CLASS-CONSTRUCTOR'.
+            CONTINUE.
+          ENDIF.
+*         Ignore private methods
+          IF ls_method-exposure = c_exposure_priv.
+            CONTINUE.
+          ENDIF.
         ENDIF.
 
-*       Inherited class or interface?
+*       Get alias for method
+        SELECT SINGLE clsname cmpname exposure FROM seocompodf INTO ls_alias
+          WHERE clsname    = lv_clsname
+            AND version    = c_version_active
+            AND refclsname = ls_method-clsname
+            AND refcmpname = ls_method-cpdname
+            AND alias      = abap_true.
+        IF sy-subrc = 0.
+          APPEND ls_alias TO lt_method.
+        ENDIF.
+
+*       Compound method names for interfaces
         IF <clif>-clstype = c_clstype_if.
-          CONCATENATE <clif>-clsname '~' lv_method INTO lv_method.
+          CONCATENATE ls_method-clsname '~' ls_method-cpdname INTO ls_method-cpdname.
         ENDIF.
 
-*       Is there an implementation?
-        ls_method_incl-clsname = is_class_key-clsname.
-        ls_method_incl-cpdname = lv_method.
-
-        READ TABLE lt_method_incl ASSIGNING <method_incl>
-          WITH KEY cpdkey = ls_method_incl.
-        IF sy-subrc <> 0.
-          CONTINUE.
-        ENDIF.
-
-        APPEND <method_incl>-incname TO lt_includes.
+        ls_method-clsname = lv_clsname.
+        APPEND ls_method TO lt_method.
 
       ENDSELECT.
 
     ENDLOOP.
 
-    IF lines( lt_method_incl ) <> lines( lt_includes ).
-      zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, some methods not processed in class { lv_obj_name }| ).
+*   Implementation per method in given order
+    CALL METHOD cl_oo_classname_service=>get_all_method_includes
+      EXPORTING
+        clsname            = lv_clsname
+      RECEIVING
+        result             = lt_method_incl
+      EXCEPTIONS
+        class_not_existing = 1.
+    IF sy-subrc <> 0.
+      zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, class { lv_clsname }| ).
     ENDIF.
 
-    LOOP AT lt_includes ASSIGNING <include>.
+    CLEAR lv_count_incl.
+    LOOP AT lt_method ASSIGNING <method>.
 
-      READ REPORT <include> INTO lt_source.
+*     Get include name for method
+      READ TABLE lt_method_incl ASSIGNING <method_incl>
+        WITH KEY cpdkey-clsname = <method>-clsname cpdkey-cpdname = <method>-cpdname.
       IF sy-subrc <> 0.
-        zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, include { <include> }| ).
+        CONTINUE.
+      ENDIF.
+
+*     Get coding for include
+      READ REPORT <method_incl>-incname INTO lt_source.
+      IF sy-subrc <> 0.
+        zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, include { <method_incl>-incname }| ).
       ENDIF.
 
       CLEAR lv_source.
@@ -380,7 +396,14 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
       INSERT lv_source INTO TABLE rt_source.
       INSERT LINES OF lt_source INTO TABLE rt_source.
 
+      ADD 1 TO lv_count_incl.
     ENDLOOP.
+
+    IF lv_count_incl <> lines( lt_method_incl ).
+      BREAK-POINT.
+      zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, number of implementations | &&
+        |{ lv_count_incl } vs. { lines( lt_method_incl ) }| ).
+    ENDIF.
 
     lv_source = 'ENDCLASS.'.
     INSERT lv_source INTO TABLE rt_source.
