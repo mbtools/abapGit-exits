@@ -23,7 +23,9 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD zif_abapgit_exit~deserialize_postprocess.
 
+  ENDMETHOD.
 * <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CHANGE_LOCAL_HOST
 * +-------------------------------------------------------------------------------------------------+
@@ -146,8 +148,8 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
         clsname   TYPE seoclsname,
       END OF ty_inheritance,
       BEGIN OF ty_clif,
-        clsname   TYPE seoclsname,
-        clstype   TYPE seoclass-clstype,
+        clsname TYPE seoclsname,
+        clstype TYPE seoclass-clstype,
       END OF ty_clif.
 
     DATA:
