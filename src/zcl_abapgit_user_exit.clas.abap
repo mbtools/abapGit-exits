@@ -8,55 +8,74 @@ CLASS zcl_abapgit_user_exit DEFINITION
       zif_abapgit_exit.
   PROTECTED SECTION.
   PRIVATE SECTION.
+
+    TYPES:
+      BEGIN OF ty_wall,
+        commit TYPE string,
+        html   TYPE REF TO zif_abapgit_html,
+      END OF ty_wall.
+
+    CLASS-DATA gt_wall TYPE HASHED TABLE OF ty_wall WITH UNIQUE KEY commit.
 ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
+CLASS zcl_abapgit_user_exit IMPLEMENTATION.
+
+
+  METHOD zif_abapgit_exit~adjust_display_commit_url.
+    RETURN.
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_exit~allow_sap_objects.
-
+    RETURN.
   ENDMETHOD.
 
 
   METHOD zif_abapgit_exit~change_local_host.
-
+    RETURN.
   ENDMETHOD.
 
 
   METHOD zif_abapgit_exit~change_proxy_authentication.
-
+    RETURN.
   ENDMETHOD.
 
 
   METHOD zif_abapgit_exit~change_proxy_port.
-
+    RETURN.
   ENDMETHOD.
 
 
   METHOD zif_abapgit_exit~change_proxy_url.
-
+    RETURN.
   ENDMETHOD.
 
 
   METHOD zif_abapgit_exit~change_tadir.
-
+    RETURN.
   ENDMETHOD.
 
 
   METHOD zif_abapgit_exit~create_http_client.
 
     DATA:
-       lv_host        TYPE string,
-       lv_destination TYPE rfcdest.
+      lv_host        TYPE string,
+      lv_destination TYPE rfcdest.
+
+* RETURN.
 
     lv_host = zcl_abapgit_url=>host( iv_url ).
 
-    IF lv_host CS 'gitlab'.
-      lv_destination = |GITLAB|.
-    ELSEIF lv_host CS 'github'.
-      lv_destination = |GITHUB|.
+*    IF lv_host CS 'gitlab'.
+*      lv_destination = |GITLAB|.
+    IF lv_host CS 'github'.
+      IF iv_url CS 'marcfbe'.
+        lv_destination = |GITHUB_MARCFBE|.
+      ELSE.
+        lv_destination = |GITHUB|.
+      ENDIF.
     ENDIF.
 
     IF lv_destination IS INITIAL.
@@ -86,10 +105,10 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
   METHOD zif_abapgit_exit~custom_serialize_abap_clif.
 
     CONSTANTS:
-      c_publ TYPE string VALUE '*"* public components of class',
-      c_prot TYPE string VALUE '*"* protected components of class',
-      c_priv TYPE string VALUE '*"* private components of class',
-      c_cmnt TYPE string VALUE '*"* do not include other source files here!!!',
+      c_publ           TYPE string VALUE '*"* public components of class',
+      c_prot           TYPE string VALUE '*"* protected components of class',
+      c_priv           TYPE string VALUE '*"* private components of class',
+      c_cmnt           TYPE string VALUE '*"* do not include other source files here!!!',
       c_version_active TYPE seoversion VALUE '1',
       c_clstype_if     TYPE seoclstype VALUE '1',
       c_clstype_cl     TYPE seoclstype VALUE '0',
@@ -104,13 +123,13 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
         clsname   TYPE seoclsname,
       END OF ty_inheritance,
       BEGIN OF ty_clif,
-        clsname   TYPE seoclsname,
-        clstype   TYPE seoclstype,
+        clsname TYPE seoclsname,
+        clstype TYPE seoclstype,
       END OF ty_clif,
       BEGIN OF ty_method,
-        clsname   TYPE seoclsname,
-        cpdname   TYPE seocpdname,
-        exposure  TYPE seoexpose,
+        clsname  TYPE seoclsname,
+        cpdname  TYPE seocpdname,
+        exposure TYPE seoexpose,
       END OF ty_method.
 
     DATA:
@@ -146,6 +165,8 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
       <clif>        TYPE ty_clif,
       <method>      TYPE ty_method,
       <method_incl> TYPE LINE OF seop_methods_w_include.
+
+    RETURN. ">>>>>
 
     lv_clsname = is_class_key-clsname.
 
@@ -411,12 +432,212 @@ CLASS ZCL_ABAPGIT_USER_EXIT IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_exit~get_ssl_id.
+  METHOD zif_abapgit_exit~deserialize_postprocess.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~get_ci_tests.
+
+    " Return the name of repos and their clone URL
+    " The name is used to define the package "$___<name>" linked to the abapGit repo
+
+    " If you don't want to use the default https://github.com/abapGit-tests/{type} repo, clear the list
+*    CLEAR ct_ci_repos.
+
+    " Other Examples:
+    CASE iv_object.
+      WHEN 'TABL'.
+        " Add some other repo from https://github.com/abapGit-tests
+*        INSERT VALUE #(
+*          name      = 'TABL_foreign_key'
+*          clone_url = 'https://github.com/abapGit-tests/TABL_foreign_key' )
+*          INTO TABLE ct_ci_repos.
+
+        " Add your own repo works as well
+*        INSERT VALUE #(
+*          name      = 'MYTEST'
+*          clone_url = 'https://github.com/mbtools/abapGit-test-del' )
+*          INTO TABLE ct_ci_repos.
+    ENDCASE.
 
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_exit~get_ssl_id.
+    RETURN.
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_exit~http_client.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~pre_calculate_repo_status.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~wall_message_list.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~wall_message_repo.
+
+    DATA:
+      lx_error       TYPE REF TO zcx_abapgit_exception,
+      lx_ajson_error TYPE REF TO zcx_abapgit_ajson_error,
+      lo_repo        TYPE REF TO zcl_abapgit_repo,
+      lo_repo_online TYPE REF TO zcl_abapgit_repo_online,
+      lv_commit      TYPE zif_abapgit_definitions=>ty_sha1,
+      ls_wall        TYPE ty_wall,
+      li_html        TYPE REF TO zif_abapgit_html,
+      lv_repo_url    TYPE string,
+      lv_check_url   TYPE string,
+      li_agent       TYPE REF TO zif_abapgit_http_agent,
+      li_json        TYPE REF TO zif_abapgit_ajson_reader,
+      lt_check_runs  TYPE TABLE OF string,
+      lv_check_run   TYPE string,
+      lv_status      TYPE string,
+      lv_conclusion  TYPE string,
+      lv_app         TYPE string,
+      lv_name        TYPE string,
+      lv_url         TYPE string,
+      lv_summary     TYPE string.
+
+    CHECK is_repo_meta-offline IS INITIAL.
+
+    TRY.
+        zcl_abapgit_repo_srv=>get_instance( )->get_repo_from_package(
+          EXPORTING
+            iv_package = is_repo_meta-package
+          IMPORTING
+            eo_repo    = lo_repo ).
+
+        lo_repo_online ?= lo_repo.
+
+        lv_commit = lo_repo_online->get_current_remote( ).
+
+      CATCH zcx_abapgit_exception INTO lx_error ##NO_HANDLER.
+        RETURN.
+    ENDTRY.
+
+    CREATE OBJECT li_html TYPE zcl_abapgit_html.
+
+    READ TABLE gt_wall INTO ls_wall WITH TABLE KEY commit = lv_commit.
+    IF sy-subrc <> 0.
+      TRY.
+          lv_repo_url = replace(
+            val  = is_repo_meta-url
+            sub  = 'github.com'
+            with = 'api.github.com/repos' ).
+          lv_repo_url = replace(
+            val   = lv_repo_url
+            regex = '\.git$'
+            with  = '' ).
+
+          lv_check_url = lv_repo_url && |/commits/{ lv_commit }/check-runs|.
+
+          " Agent
+          li_agent = zcl_abapgit_factory=>get_http_agent( ).
+
+          li_agent->global_headers( )->set(
+            iv_key = 'Accept'
+            iv_val = 'application/vnd.github.v3+json' ).
+
+          IF zcl_abapgit_login_manager=>get( is_repo_meta-url ) IS NOT INITIAL.
+            li_agent->global_headers( )->set(
+              iv_key = 'Authorization'
+              iv_val = zcl_abapgit_login_manager=>get( is_repo_meta-url ) ).
+          ENDIF.
+
+          " JSON
+          li_json = li_agent->request( lv_check_url )->json( ).
+
+          lt_check_runs = li_json->members( '/check_runs' ).
+
+          LOOP AT lt_check_runs INTO lv_check_run.
+            lv_status     = li_json->get( |/check_runs/{ lv_check_run }/status| ).
+            lv_conclusion = li_json->get( |/check_runs/{ lv_check_run }/conclusion| ).
+            lv_app        = li_json->get( |/check_runs/{ lv_check_run }/app/name| ).
+            lv_name       = li_json->get( |/check_runs/{ lv_check_run }/name| ).
+            lv_url        = li_json->get( |/check_runs/{ lv_check_run }/html_url| ).
+            lv_summary    = li_json->get( |/check_runs/{ lv_check_run }/output/summary| ).
+            REPLACE ALL OCCURRENCES OF %_newline && %_newline IN lv_summary WITH ', '.
+
+            CHECK lv_app = 'abaplint'.
+
+            li_html->add( |<div>| ).
+
+            CASE lv_status.
+              WHEN 'queued'.
+                li_html->add_a(
+                  iv_txt  = zcl_abapgit_html=>icon(
+                    iv_name = 'arrow-circle-up'
+                    iv_hint = lv_status )
+                  iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
+              WHEN 'in_progress'.
+                li_html->add_a(
+                  iv_txt  = zcl_abapgit_html=>icon(
+                    iv_name  = 'arrow-circle-up'
+                    iv_class = 'warning'
+                    iv_hint  = lv_status )
+                  iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
+              WHEN 'completed'.
+                CASE lv_conclusion.
+                  WHEN 'neutral'.
+                    li_html->add_a(
+                      iv_txt  = zcl_abapgit_html=>icon(
+                        iv_name = 'arrow-circle-up'
+                        iv_hint = lv_conclusion )
+                      iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
+                  WHEN 'success'.
+                    li_html->add_a(
+                      iv_txt  = zcl_abapgit_html=>icon(
+                        iv_name  = 'check'
+                        iv_class = 'success'
+                        iv_hint  = lv_conclusion )
+                      iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
+                  WHEN 'failure'.
+                    li_html->add_a(
+                      iv_txt  = zcl_abapgit_html=>icon(
+                        iv_name  = 'exclamation-circle'
+                        iv_class = 'error'
+                        iv_hint  = lv_conclusion )
+                      iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
+
+*                    lv_summary = li_html->a(
+*                      iv_txt = lv_summary
+*                      iv_act = |{ zif_abapgit_definitions=>c_action-go_abaplint }?checkrun={ lv_check_run }| ).
+                ENDCASE.
+            ENDCASE.
+
+            IF lv_name <> lv_app.
+              lv_name = |{ lv_app } - { lv_name }|.
+            ENDIF.
+            IF lv_summary IS NOT INITIAL.
+              lv_name = |{ lv_name }: { lv_summary }|.
+            ENDIF.
+
+            li_html->add( |{ lv_name }</div>| ).
+          ENDLOOP.
+
+        CATCH zcx_abapgit_exception INTO lx_error ##NO_HANDLER.
+          BREAK-POINT.
+        CATCH zcx_abapgit_ajson_error INTO lx_ajson_error ##NO_HANDLER.
+          BREAK-POINT.
+      ENDTRY.
+
+      IF lv_status = 'completed'.
+        ls_wall-commit = lv_commit.
+        ls_wall-html   = li_html.
+        INSERT ls_wall INTO TABLE gt_wall.
+      ENDIF.
+    ENDIF.
+
+    ii_html->add( li_html->render( ) ).
 
   ENDMETHOD.
 ENDCLASS.
