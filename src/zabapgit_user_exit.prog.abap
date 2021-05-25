@@ -548,6 +548,18 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~ON_EVENT
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] II_EVENT                       TYPE REF TO ZIF_ABAPGIT_GUI_EVENT
+* | [<-()] RS_HANDLED                     TYPE        ZIF_ABAPGIT_GUI_EVENT_HANDLER=>TY_HANDLING_RESULT
+* | [!CX!] ZCX_ABAPGIT_EXCEPTION
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~on_event.
+    RETURN.
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~PRE_CALCULATE_REPO_STATUS
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IS_REPO_META                   TYPE        ZIF_ABAPGIT_PERSISTENCE=>TY_REPO

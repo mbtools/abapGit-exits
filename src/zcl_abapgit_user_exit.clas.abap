@@ -1,11 +1,10 @@
 CLASS zcl_abapgit_user_exit DEFINITION
   PUBLIC
-  FINAL
-  CREATE PUBLIC.
+  CREATE PUBLIC .
 
   PUBLIC SECTION.
-    INTERFACES:
-      zif_abapgit_exit.
+
+    INTERFACES zif_abapgit_exit .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -104,6 +103,13 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
   METHOD zif_abapgit_exit~custom_serialize_abap_clif.
 
+    " 1) Remove signatures and default comments
+    " 2) Remove empty class sections
+    " 3) Change class identifier to lower case
+    " 4) Re-order method implementations
+    CONSTANTS:
+        c_options TYPE string VALUE '123'.
+
     CONSTANTS:
       c_publ           TYPE string VALUE '*"* public components of class',
       c_prot           TYPE string VALUE '*"* protected components of class',
@@ -145,6 +151,7 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
       lv_end           TYPE string,
       lv_remove        TYPE abap_bool,
       lv_tabix         TYPE sy-tabix,
+      lv_tabix_section TYPE sy-tabix,
       lv_eof_def       TYPE sy-tabix,
       lt_source        LIKE rt_source,
       lt_source_temp   LIKE rt_source,
@@ -168,22 +175,26 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
     RETURN. ">>>>>
 
+    IF c_options IS INITIAL.
+      RETURN.
+    ENDIF.
+
     lv_clsname = is_class_key-clsname.
 
-*   Only for some packages / super packages
+    " Only for some packages / super packages
     ls_package_range-sign   = 'I'.
     ls_package_range-option = 'CP'.
     ls_package_range-low    = '$ABAPGIT*'.
     APPEND ls_package_range TO lt_package_range.
-    ls_package_range-low    = '$MBT*'.
+    ls_package_range-low    = '/MBTOOLS/*'.
     APPEND ls_package_range TO lt_package_range.
 
     lv_obj_name = is_class_key-clsname.
 
     lv_package = zcl_abapgit_factory=>get_tadir( )->get_object_package(
       iv_object   = 'CLAS'
-      iv_obj_name = lv_obj_name
-    ).
+      iv_obj_name = lv_obj_name ).
+
     IF lv_package IS INITIAL.
       RETURN. " Probably INTF instead of CLAS
     ENDIF.
@@ -198,7 +209,7 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
       RETURN. " Normal serialization
     ENDIF.
 
-*   Get existing source
+    " Get existing source
     CREATE OBJECT lo_source
       EXPORTING
         clskey             = is_class_key
@@ -212,222 +223,243 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
     lo_source->read( 'A' ).
     lt_source = lo_source->get_old_source( ).
 
-*   1) Remove signatures and default comments
-    CONCATENATE '* <SIGNATURE>------------------------------------'
-      '---------------------------------------------------+'
-      INTO lv_begin.
+    " 1) Remove signatures and default comments
+    IF c_options CA '1'.
+      CONCATENATE '* <SIGNATURE>------------------------------------'
+        '---------------------------------------------------+'
+        INTO lv_begin.
 
-    CONCATENATE '* +------------------------------------------------'
-      '--------------------------------------</SIGNATURE>'
-      INTO lv_end.
+      CONCATENATE '* +------------------------------------------------'
+        '--------------------------------------</SIGNATURE>'
+        INTO lv_end.
 
-    lv_remove = abap_false.
-    LOOP AT lt_source ASSIGNING <source>.
-      IF <source> CS c_publ OR <source> CS c_prot OR <source> CS c_priv OR <source> = c_cmnt.
-        CONTINUE.
-      ENDIF.
-      IF <source> = lv_begin.
-        lv_remove = abap_true.
-      ENDIF.
-      IF lv_remove = abap_false.
-        APPEND <source> TO lt_source_temp.
-      ENDIF.
-      IF <source> = lv_end.
-        lv_remove = abap_false.
-      ENDIF.
-    ENDLOOP.
-
-**   2) Remove empty class sections
-*    DO 3 TIMES.
-*      CASE sy-index.
-*        WHEN 1.
-*          lv_source = 'PUBLIC SECTION.'.
-*        WHEN 2.
-*          lv_source = 'PROTECTED SECTION.'.
-*        WHEN 3.
-*          lv_source = 'PRIVATE SECTION.'.
-*      ENDCASE.
-*
-*      FIND lv_source IN TABLE lt_source_temp
-*        IGNORING CASE MATCH LINE lv_tabix.
-*      IF sy-subrc = 0.
-*        lv_tabix = lv_tabix + 1.
-*      ELSE.
-*        CONTINUE.
-*      ENDIF.
-*
-**     If section is empty, then remove section completely
-*      lv_remove = abap_true.
-*      LOOP AT lt_source_temp ASSIGNING <source> FROM lv_tabix.
-*        IF <source> CS 'SECTION.' OR <source> CS 'ENDCLASS.'.
-*          EXIT.
-*        ELSEIF <source> IS INITIAL.
-*          CONTINUE.
-*        ELSE.
-*          lv_remove = abap_false.
-*          EXIT.
-*        ENDIF.
-*      ENDLOOP.
-*
-*      IF lv_remove = abap_true.
-*        DELETE lt_source_temp WHERE table_line CS lv_source.
-*      ENDIF.
-*    ENDDO.
-
-*   3) Change class identifier to lower case
-    CLEAR lv_eof_def.
-    LOOP AT lt_source_temp ASSIGNING <source>
-      WHERE table_line CP 'CLASS * IMPLEMENTATION.' OR table_line CP 'CLASS * DEFINITION'.
-
-      SPLIT <source> AT space INTO lv_begin <source> lv_end.
-      TRANSLATE <source> TO LOWER CASE.
-      CONCATENATE lv_begin <source> lv_end INTO <source> SEPARATED BY space.
-
-      IF <source> CP 'CLASS * IMPLEMENTATION.'.
-        lv_eof_def = sy-tabix.
-      ENDIF.
-    ENDLOOP.
-
-*   4) Re-order method implementations
-    CLEAR: rt_source.
-
-    LOOP AT lt_source_temp ASSIGNING <source> TO lv_eof_def.
-      INSERT <source> INTO TABLE rt_source.
-    ENDLOOP.
-
-*   Classes in order of inheritance
-    ls_inheritance-editorder = 1.
-    ls_inheritance-clsname = lv_clsname.
-    DO.
-      APPEND ls_inheritance TO lt_inheritance.
-
-      SELECT SINGLE refclsname FROM seometarel INTO ls_inheritance-clsname
-        WHERE clsname = ls_inheritance-clsname
-          AND version = c_version_active
-          AND reltype = c_reltype_cl.
-      IF sy-subrc = 0.
-        ADD 1 TO ls_inheritance-editorder.
-      ELSE.
-        EXIT.
-      ENDIF.
-    ENDDO.
-    SORT lt_inheritance BY editorder DESCENDING.
-
-*   Interfaces per class in edit order
-    CLEAR lt_clif.
-    LOOP AT lt_inheritance INTO ls_inheritance.
-
-      SELECT a~refclsname b~clstype APPENDING TABLE lt_clif
-        FROM seometarel AS a JOIN seoclass AS b
-        ON a~refclsname = b~clsname
-        WHERE a~clsname = ls_inheritance-clsname
-          AND a~version = c_version_active
-          AND a~reltype = c_reltype_if
-        ORDER BY editorder.
-
-    ENDLOOP.
-
-*   Classes in order of inheritance (root first)
-    LOOP AT lt_inheritance INTO ls_inheritance.
-
-      ls_clif-clsname = ls_inheritance-clsname.
-      ls_clif-clstype = c_clstype_cl.
-      APPEND ls_clif TO lt_clif.
-
-    ENDLOOP.
-
-*   Methods per interface in edit order
-    CLEAR lt_method.
-    LOOP AT lt_clif ASSIGNING <clif>.
-
-      SELECT a~clsname a~cmpname b~exposure INTO ls_method
-        FROM seocompo AS a JOIN seocompodf AS b
-        ON a~clsname = b~clsname AND a~cmpname = b~cmpname
-        WHERE a~clsname = <clif>-clsname
-          AND a~cmptype = c_cmptype_method
-          AND b~version = c_version_active
-          AND b~alias   = abap_false
-        ORDER BY b~editorder.
-
-*       Check inheritance
-        IF ls_method-clsname <> lv_clsname.
-*         Ignore constructors
-          IF ls_method-cpdname = 'CONSTRUCTOR' OR ls_method-cpdname = 'CLASS-CONSTRUCTOR'.
-            CONTINUE.
-          ENDIF.
-*         Ignore private methods
-          IF ls_method-exposure = c_exposure_priv.
-            CONTINUE.
-          ENDIF.
+      lv_remove = abap_false.
+      LOOP AT lt_source ASSIGNING <source>.
+        IF <source> CS c_publ OR <source> CS c_prot OR <source> CS c_priv OR <source> = c_cmnt.
+          CONTINUE.
         ENDIF.
+        IF <source> = lv_begin.
+          lv_remove = abap_true.
+        ENDIF.
+        IF lv_remove = abap_false.
+          APPEND <source> TO lt_source_temp.
+        ENDIF.
+        IF <source> = lv_end.
+          lv_remove = abap_false.
+        ENDIF.
+      ENDLOOP.
 
-*       Get alias for method
-        SELECT SINGLE clsname cmpname exposure FROM seocompodf INTO ls_alias
-          WHERE clsname    = lv_clsname
-            AND version    = c_version_active
-            AND refclsname = ls_method-clsname
-            AND refcmpname = ls_method-cpdname
-            AND alias      = abap_true.
+      rt_source = lt_source_temp.
+    ENDIF.
+
+    " 2) Remove empty class sections
+    IF c_options CA '2'.
+      lt_source_temp = rt_source.
+
+      DO 3 TIMES.
+        CASE sy-index.
+          WHEN 1.
+            lv_source = 'PUBLIC SECTION.'.
+          WHEN 2.
+            lv_source = 'PROTECTED SECTION.'.
+          WHEN 3.
+            lv_source = 'PRIVATE SECTION.'.
+        ENDCASE.
+
+        FIND lv_source IN TABLE lt_source_temp
+          IGNORING CASE MATCH LINE lv_tabix.
         IF sy-subrc = 0.
-          APPEND ls_alias TO lt_method.
+          lv_tabix = lv_tabix + 1.
+        ELSE.
+          CONTINUE.
         ENDIF.
 
-*       Compound method names for interfaces
-        IF <clif>-clstype = c_clstype_if.
-          CONCATENATE ls_method-clsname '~' ls_method-cpdname INTO ls_method-cpdname.
+        " If section is empty, then remove section completely
+        lv_remove = abap_true.
+        LOOP AT lt_source_temp ASSIGNING <source> FROM lv_tabix.
+          IF <source> CS 'SECTION.' OR <source> CS 'ENDCLASS.'.
+            EXIT.
+          ELSEIF <source> IS INITIAL.
+            CONTINUE.
+          ELSE.
+            lv_remove = abap_false.
+            EXIT.
+          ENDIF.
+        ENDLOOP.
+
+        IF lv_remove = abap_true.
+          DELETE lt_source_temp WHERE table_line CS lv_source.
+        ENDIF.
+      ENDDO.
+
+      rt_source = lt_source_temp.
+    ENDIF.
+
+    " 3) Change class identifier to lower case
+    IF c_options CA '3'.
+      lt_source_temp = rt_source.
+
+      CLEAR lv_eof_def.
+      LOOP AT lt_source_temp ASSIGNING <source>
+        WHERE table_line CP 'CLASS * IMPLEMENTATION.' OR table_line CP 'CLASS * DEFINITION'.
+
+        SPLIT <source> AT space INTO lv_begin <source> lv_end.
+        TRANSLATE <source> TO LOWER CASE.
+        CONCATENATE lv_begin <source> lv_end INTO <source> SEPARATED BY space.
+
+        IF <source> CP 'CLASS * IMPLEMENTATION.'.
+          lv_eof_def = sy-tabix.
+        ENDIF.
+      ENDLOOP.
+
+      rt_source = lt_source_temp.
+    ENDIF.
+
+    " 4) Re-order method implementations
+    IF c_options CA '4'.
+      lt_source_temp = rt_source.
+
+      CLEAR: rt_source.
+
+      LOOP AT lt_source_temp ASSIGNING <source> TO lv_eof_def.
+        INSERT <source> INTO TABLE rt_source.
+      ENDLOOP.
+
+      " Classes in order of inheritance
+      ls_inheritance-editorder = 1.
+      ls_inheritance-clsname = lv_clsname.
+      DO.
+        APPEND ls_inheritance TO lt_inheritance.
+
+        SELECT SINGLE refclsname FROM seometarel INTO ls_inheritance-clsname
+          WHERE clsname = ls_inheritance-clsname
+            AND version = c_version_active
+            AND reltype = c_reltype_cl.
+        IF sy-subrc = 0.
+          ADD 1 TO ls_inheritance-editorder.
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDDO.
+      SORT lt_inheritance BY editorder DESCENDING.
+
+      " Interfaces per class in edit order
+      CLEAR lt_clif.
+      LOOP AT lt_inheritance INTO ls_inheritance.
+
+        SELECT a~refclsname b~clstype APPENDING TABLE lt_clif
+          FROM seometarel AS a JOIN seoclass AS b
+          ON a~refclsname = b~clsname
+          WHERE a~clsname = ls_inheritance-clsname
+            AND a~version = c_version_active
+            AND a~reltype = c_reltype_if
+          ORDER BY editorder.
+
+      ENDLOOP.
+
+      " Classes in order of inheritance (root first)
+      LOOP AT lt_inheritance INTO ls_inheritance.
+
+        ls_clif-clsname = ls_inheritance-clsname.
+        ls_clif-clstype = c_clstype_cl.
+        APPEND ls_clif TO lt_clif.
+
+      ENDLOOP.
+
+      " Methods per interface in edit order
+      CLEAR lt_method.
+      LOOP AT lt_clif ASSIGNING <clif>.
+
+        SELECT a~clsname a~cmpname b~exposure INTO ls_method
+          FROM seocompo AS a JOIN seocompodf AS b
+          ON a~clsname = b~clsname AND a~cmpname = b~cmpname
+          WHERE a~clsname = <clif>-clsname
+            AND a~cmptype = c_cmptype_method
+            AND b~version = c_version_active
+            AND b~alias   = abap_false
+          ORDER BY b~editorder.
+
+          " Check inheritance
+          IF ls_method-clsname <> lv_clsname.
+            " Ignore constructors
+            IF ls_method-cpdname = 'CONSTRUCTOR' OR ls_method-cpdname = 'CLASS-CONSTRUCTOR'.
+              CONTINUE.
+            ENDIF.
+            " Ignore private methods
+            IF ls_method-exposure = c_exposure_priv.
+              CONTINUE.
+            ENDIF.
+          ENDIF.
+
+          " Get alias for method
+          SELECT SINGLE clsname cmpname exposure FROM seocompodf INTO ls_alias
+            WHERE clsname    = lv_clsname
+              AND version    = c_version_active
+              AND refclsname = ls_method-clsname
+              AND refcmpname = ls_method-cpdname
+              AND alias      = abap_true.
+          IF sy-subrc = 0.
+            APPEND ls_alias TO lt_method.
+          ENDIF.
+
+          " Compound method names for interfaces
+          IF <clif>-clstype = c_clstype_if.
+            CONCATENATE ls_method-clsname '~' ls_method-cpdname INTO ls_method-cpdname.
+          ENDIF.
+
+          ls_method-clsname = lv_clsname.
+          APPEND ls_method TO lt_method.
+
+        ENDSELECT.
+
+      ENDLOOP.
+
+      " Implementation per method in given order
+      CALL METHOD cl_oo_classname_service=>get_all_method_includes
+        EXPORTING
+          clsname            = lv_clsname
+        RECEIVING
+          result             = lt_method_incl
+        EXCEPTIONS
+          class_not_existing = 1.
+      IF sy-subrc <> 0.
+        zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, class { lv_clsname }| ).
+      ENDIF.
+
+      CLEAR lv_count_incl.
+      LOOP AT lt_method ASSIGNING <method>.
+
+        " Get include name for method
+        READ TABLE lt_method_incl ASSIGNING <method_incl>
+          WITH KEY cpdkey-clsname = <method>-clsname cpdkey-cpdname = <method>-cpdname.
+        IF sy-subrc <> 0.
+          CONTINUE.
         ENDIF.
 
-        ls_method-clsname = lv_clsname.
-        APPEND ls_method TO lt_method.
+        " Get coding for include
+        READ REPORT <method_incl>-incname INTO lt_source.
+        IF sy-subrc <> 0.
+          zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, include { <method_incl>-incname }| ).
+        ENDIF.
 
-      ENDSELECT.
+        CLEAR lv_source.
+        INSERT lv_source INTO TABLE rt_source.
+        INSERT lv_source INTO TABLE rt_source.
+        INSERT LINES OF lt_source INTO TABLE rt_source.
 
-    ENDLOOP.
+        ADD 1 TO lv_count_incl.
+      ENDLOOP.
 
-*   Implementation per method in given order
-    CALL METHOD cl_oo_classname_service=>get_all_method_includes
-      EXPORTING
-        clsname            = lv_clsname
-      RECEIVING
-        result             = lt_method_incl
-      EXCEPTIONS
-        class_not_existing = 1.
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, class { lv_clsname }| ).
-    ENDIF.
-
-    CLEAR lv_count_incl.
-    LOOP AT lt_method ASSIGNING <method>.
-
-*     Get include name for method
-      READ TABLE lt_method_incl ASSIGNING <method_incl>
-        WITH KEY cpdkey-clsname = <method>-clsname cpdkey-cpdname = <method>-cpdname.
-      IF sy-subrc <> 0.
-        CONTINUE.
+      IF lv_count_incl <> lines( lt_method_incl ).
+        BREAK-POINT.
+        zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, number of implementations | &&
+          |{ lv_count_incl } vs. { lines( lt_method_incl ) }| ).
       ENDIF.
 
-*     Get coding for include
-      READ REPORT <method_incl>-incname INTO lt_source.
-      IF sy-subrc <> 0.
-        zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, include { <method_incl>-incname }| ).
-      ENDIF.
-
-      CLEAR lv_source.
+      lv_source = 'ENDCLASS.'.
       INSERT lv_source INTO TABLE rt_source.
-      INSERT lv_source INTO TABLE rt_source.
-      INSERT LINES OF lt_source INTO TABLE rt_source.
 
-      ADD 1 TO lv_count_incl.
-    ENDLOOP.
-
-    IF lv_count_incl <> lines( lt_method_incl ).
-      BREAK-POINT.
-      zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, number of implementations | &&
-        |{ lv_count_incl } vs. { lines( lt_method_incl ) }| ).
     ENDIF.
-
-    lv_source = 'ENDCLASS.'.
-    INSERT lv_source INTO TABLE rt_source.
 
   ENDMETHOD.
 
@@ -474,6 +506,13 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_exit~on_event.
+
+    rs_handled = zcl_abaplint_abapgit_ext_exit=>get_instance( )->on_event( ii_event ).
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_exit~pre_calculate_repo_status.
     RETURN.
   ENDMETHOD.
@@ -486,158 +525,9 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
   METHOD zif_abapgit_exit~wall_message_repo.
 
-    DATA:
-      lx_error       TYPE REF TO zcx_abapgit_exception,
-      lx_ajson_error TYPE REF TO zcx_abapgit_ajson_error,
-      lo_repo        TYPE REF TO zcl_abapgit_repo,
-      lo_repo_online TYPE REF TO zcl_abapgit_repo_online,
-      lv_commit      TYPE zif_abapgit_definitions=>ty_sha1,
-      ls_wall        TYPE ty_wall,
-      li_html        TYPE REF TO zif_abapgit_html,
-      lv_repo_url    TYPE string,
-      lv_check_url   TYPE string,
-      li_agent       TYPE REF TO zif_abapgit_http_agent,
-      li_json        TYPE REF TO zif_abapgit_ajson_reader,
-      lt_check_runs  TYPE TABLE OF string,
-      lv_check_run   TYPE string,
-      lv_status      TYPE string,
-      lv_conclusion  TYPE string,
-      lv_app         TYPE string,
-      lv_name        TYPE string,
-      lv_url         TYPE string,
-      lv_summary     TYPE string.
-
-    CHECK is_repo_meta-offline IS INITIAL.
-
-    TRY.
-        zcl_abapgit_repo_srv=>get_instance( )->get_repo_from_package(
-          EXPORTING
-            iv_package = is_repo_meta-package
-          IMPORTING
-            eo_repo    = lo_repo ).
-
-        lo_repo_online ?= lo_repo.
-
-        lv_commit = lo_repo_online->get_current_remote( ).
-
-      CATCH zcx_abapgit_exception INTO lx_error ##NO_HANDLER.
-        RETURN.
-    ENDTRY.
-
-    CREATE OBJECT li_html TYPE zcl_abapgit_html.
-
-    READ TABLE gt_wall INTO ls_wall WITH TABLE KEY commit = lv_commit.
-    IF sy-subrc <> 0.
-      TRY.
-          lv_repo_url = replace(
-            val  = is_repo_meta-url
-            sub  = 'github.com'
-            with = 'api.github.com/repos' ).
-          lv_repo_url = replace(
-            val   = lv_repo_url
-            regex = '\.git$'
-            with  = '' ).
-
-          lv_check_url = lv_repo_url && |/commits/{ lv_commit }/check-runs|.
-
-          " Agent
-          li_agent = zcl_abapgit_factory=>get_http_agent( ).
-
-          li_agent->global_headers( )->set(
-            iv_key = 'Accept'
-            iv_val = 'application/vnd.github.v3+json' ).
-
-          IF zcl_abapgit_login_manager=>get( is_repo_meta-url ) IS NOT INITIAL.
-            li_agent->global_headers( )->set(
-              iv_key = 'Authorization'
-              iv_val = zcl_abapgit_login_manager=>get( is_repo_meta-url ) ).
-          ENDIF.
-
-          " JSON
-          li_json = li_agent->request( lv_check_url )->json( ).
-
-          lt_check_runs = li_json->members( '/check_runs' ).
-
-          LOOP AT lt_check_runs INTO lv_check_run.
-            lv_status     = li_json->get( |/check_runs/{ lv_check_run }/status| ).
-            lv_conclusion = li_json->get( |/check_runs/{ lv_check_run }/conclusion| ).
-            lv_app        = li_json->get( |/check_runs/{ lv_check_run }/app/name| ).
-            lv_name       = li_json->get( |/check_runs/{ lv_check_run }/name| ).
-            lv_url        = li_json->get( |/check_runs/{ lv_check_run }/html_url| ).
-            lv_summary    = li_json->get( |/check_runs/{ lv_check_run }/output/summary| ).
-            REPLACE ALL OCCURRENCES OF %_newline && %_newline IN lv_summary WITH ', '.
-
-            CHECK lv_app = 'abaplint'.
-
-            li_html->add( |<div>| ).
-
-            CASE lv_status.
-              WHEN 'queued'.
-                li_html->add_a(
-                  iv_txt  = zcl_abapgit_html=>icon(
-                    iv_name = 'arrow-circle-up'
-                    iv_hint = lv_status )
-                  iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
-              WHEN 'in_progress'.
-                li_html->add_a(
-                  iv_txt  = zcl_abapgit_html=>icon(
-                    iv_name  = 'arrow-circle-up'
-                    iv_class = 'warning'
-                    iv_hint  = lv_status )
-                  iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
-              WHEN 'completed'.
-                CASE lv_conclusion.
-                  WHEN 'neutral'.
-                    li_html->add_a(
-                      iv_txt  = zcl_abapgit_html=>icon(
-                        iv_name = 'arrow-circle-up'
-                        iv_hint = lv_conclusion )
-                      iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
-                  WHEN 'success'.
-                    li_html->add_a(
-                      iv_txt  = zcl_abapgit_html=>icon(
-                        iv_name  = 'check'
-                        iv_class = 'success'
-                        iv_hint  = lv_conclusion )
-                      iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
-                  WHEN 'failure'.
-                    li_html->add_a(
-                      iv_txt  = zcl_abapgit_html=>icon(
-                        iv_name  = 'exclamation-circle'
-                        iv_class = 'error'
-                        iv_hint  = lv_conclusion )
-                      iv_act   = |{ zif_abapgit_definitions=>c_action-url }?url={ lv_url }| ).
-
-*                    lv_summary = li_html->a(
-*                      iv_txt = lv_summary
-*                      iv_act = |{ zif_abapgit_definitions=>c_action-go_abaplint }?checkrun={ lv_check_run }| ).
-                ENDCASE.
-            ENDCASE.
-
-            IF lv_name <> lv_app.
-              lv_name = |{ lv_app } - { lv_name }|.
-            ENDIF.
-            IF lv_summary IS NOT INITIAL.
-              lv_name = |{ lv_name }: { lv_summary }|.
-            ENDIF.
-
-            li_html->add( |{ lv_name }</div>| ).
-          ENDLOOP.
-
-        CATCH zcx_abapgit_exception INTO lx_error ##NO_HANDLER.
-          BREAK-POINT.
-        CATCH zcx_abapgit_ajson_error INTO lx_ajson_error ##NO_HANDLER.
-          BREAK-POINT.
-      ENDTRY.
-
-      IF lv_status = 'completed'.
-        ls_wall-commit = lv_commit.
-        ls_wall-html   = li_html.
-        INSERT ls_wall INTO TABLE gt_wall.
-      ENDIF.
-    ENDIF.
-
-    ii_html->add( li_html->render( ) ).
+    zcl_abaplint_abapgit_ext_exit=>get_instance( )->wall_message_repo(
+      is_repo_meta = is_repo_meta
+      ii_html      = ii_html ).
 
   ENDMETHOD.
 ENDCLASS.
