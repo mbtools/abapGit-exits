@@ -14,12 +14,41 @@ CLASS zcl_abapgit_user_exit DEFINITION
         html   TYPE REF TO zif_abapgit_html,
       END OF ty_wall.
 
-    CLASS-DATA gt_wall TYPE HASHED TABLE OF ty_wall WITH UNIQUE KEY commit.
+    CLASS-DATA:
+      gt_wall TYPE HASHED TABLE OF ty_wall WITH UNIQUE KEY commit.
+
+    METHODS fix_types_indent
+      IMPORTING
+        !it_code       TYPE rswsourcet
+      RETURNING
+        VALUE(rt_code) TYPE rswsourcet.
 ENDCLASS.
 
 
 
 CLASS zcl_abapgit_user_exit IMPLEMENTATION.
+
+
+  METHOD fix_types_indent.
+
+    rt_code = it_code.
+    DATA(lv_fix_next) = abap_false.
+    LOOP AT rt_code ASSIGNING FIELD-SYMBOL(<ls_code>).
+      IF <ls_code> CS 'TYPES:' AND <ls_code>(1) <> '*' AND lv_fix_next = abap_false.
+        DATA(lv_types_indent) = sy-fdpos.
+      ENDIF.
+      IF ( <ls_code> CS 'INCLUDE TYPE' OR <ls_code> CS 'INCLUDE STRUCTURE' ) AND lv_types_indent > 0.
+        lv_fix_next = abap_true.
+      ELSEIF lv_fix_next = abap_true.
+        SHIFT <ls_code> LEFT DELETING LEADING space.
+        SHIFT <ls_code> RIGHT BY lv_types_indent PLACES.
+        CLEAR lv_fix_next.
+      ELSE.
+        CLEAR lv_fix_next.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_exit~adjust_display_commit_url.
@@ -98,17 +127,63 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
       zcx_abapgit_exception=>raise_t100(  ).
     ENDIF.
 
+    zcl_abapgit_login_manager=>clear( ).
+
   ENDMETHOD.
 
 
   METHOD zif_abapgit_exit~custom_serialize_abap_clif.
+
+    DATA:
+      lr_sett_pp TYPE REF TO cl_pretty_printer_wb_settings,
+      lt_code    TYPE rswsourcet,
+      lt_code_pp TYPE rswsourcet.
+
+    CREATE OBJECT lr_sett_pp.
+
+    " lowercase setting:
+    " space = upper case
+    " X     = lower case
+    " G     = upper case keyword
+    " L     = lower case keyword
+    " A     = auto-detect (if supported)
+    " indent setting:
+    " 0 = no indent
+    " 2 = with indent
+    IF is_class_key-clsname CP '/MBTOOLS/*' AND is_class_key-clsname NS 'AJSON' AND is_class_key-clsname NS 'STRING_MAP'.
+      lr_sett_pp->wb_settings-lowercase = 'G'.
+      lr_sett_pp->wb_settings-indent    = 2.
+    ELSE.
+      RETURN.
+    ENDIF.
+
+    IF it_source IS NOT INITIAL.
+      lt_code[] = it_source.
+      CALL FUNCTION 'PRETTY_PRINTER'
+        EXPORTING
+          inctoo             = abap_false
+          settings           = lr_sett_pp
+        TABLES
+          ntext              = lt_code_pp
+          otext              = lt_code
+        EXCEPTIONS
+          enqueue_table_full = 1
+          include_enqueued   = 2
+          include_readerror  = 3
+          include_writeerror = 4
+          OTHERS             = 5.
+      IF sy-subrc = 0.
+        rt_source = fix_types_indent( lt_code_pp ).
+      ENDIF.
+      RETURN.
+    ENDIF.
 
     " 1) Remove signatures and default comments
     " 2) Remove empty class sections
     " 3) Change class identifier to lower case
     " 4) Re-order method implementations
     CONSTANTS:
-        c_options TYPE string VALUE '123'.
+      c_options TYPE string VALUE '123'.
 
     CONSTANTS:
       c_publ           TYPE string VALUE '*"* public components of class',
@@ -143,9 +218,9 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
       lv_obj_name      TYPE tadir-obj_name,
       li_package       TYPE REF TO zif_abapgit_sap_package,
       lt_super_package TYPE zif_abapgit_sap_package=>ty_devclass_tt,
-      lv_package       TYPE devclass,
       lt_package_range TYPE RANGE OF devclass,
       ls_package_range LIKE LINE OF lt_package_range,
+      lv_package       TYPE devclass,
       lo_source        TYPE REF TO cl_oo_source,
       lv_begin         TYPE string,
       lv_end           TYPE string,
