@@ -8,15 +8,6 @@ CLASS zcl_abapgit_user_exit DEFINITION
   PROTECTED SECTION.
   PRIVATE SECTION.
 
-    TYPES:
-      BEGIN OF ty_wall,
-        commit TYPE string,
-        html   TYPE REF TO zif_abapgit_html,
-      END OF ty_wall.
-
-    CLASS-DATA:
-      gt_wall TYPE HASHED TABLE OF ty_wall WITH UNIQUE KEY commit.
-
     METHODS fix_types_indent
       IMPORTING
         !it_code       TYPE rswsourcet
@@ -52,6 +43,11 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
 
   METHOD zif_abapgit_exit~adjust_display_commit_url.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~adjust_display_filename.
     RETURN.
   ENDMETHOD.
 
@@ -135,11 +131,10 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
   METHOD zif_abapgit_exit~custom_serialize_abap_clif.
 
     DATA:
-      lr_sett_pp TYPE REF TO cl_pretty_printer_wb_settings,
-      lt_code    TYPE rswsourcet,
-      lt_code_pp TYPE rswsourcet.
-
-    CREATE OBJECT lr_sett_pp.
+      ls_settings     TYPE rseumod,
+      ls_settings_tmp TYPE rseumod,
+      lt_code         TYPE rswsourcet,
+      lt_code_pp      TYPE rswsourcet.
 
     " lowercase setting:
     " space = upper case
@@ -151,18 +146,30 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
     " 0 = no indent
     " 2 = with indent
     IF is_class_key-clsname CP '/MBTOOLS/*' AND is_class_key-clsname NS 'AJSON' AND is_class_key-clsname NS 'STRING_MAP'.
-      lr_sett_pp->wb_settings-lowercase = 'G'.
-      lr_sett_pp->wb_settings-indent    = 2.
+      CALL FUNCTION 'RS_WORKBENCH_CUSTOMIZING'
+        EXPORTING
+          suppress_dialog = abap_true
+        IMPORTING
+          setting         = ls_settings.
+
+      ls_settings_tmp = ls_settings.
+      ls_settings_tmp-lowercase = 'G'.
+      ls_settings_tmp-indent    = 2.
+
+      CALL FUNCTION 'RS_WORKBENCH_CUSTOMIZING'
+        EXPORTING
+          suppress_dialog = abap_true
+          setting_import  = ls_settings_tmp.
     ELSE.
       RETURN.
     ENDIF.
 
     IF it_source IS NOT INITIAL.
       lt_code[] = it_source.
+
       CALL FUNCTION 'PRETTY_PRINTER'
         EXPORTING
           inctoo             = abap_false
-          settings           = lr_sett_pp
         TABLES
           ntext              = lt_code_pp
           otext              = lt_code
@@ -175,6 +182,12 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
       IF sy-subrc = 0.
         rt_source = fix_types_indent( lt_code_pp ).
       ENDIF.
+
+      CALL FUNCTION 'RS_WORKBENCH_CUSTOMIZING'
+        EXPORTING
+          suppress_dialog = abap_true
+          setting_import  = ls_settings.
+
       RETURN.
     ENDIF.
 
@@ -258,8 +271,11 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
     " Only for some packages / super packages
     ls_package_range-sign   = 'I'.
+    ls_package_range-option = 'EQ'.
+    ls_package_range-low    = '$ABAPGIT'.
+    APPEND ls_package_range TO lt_package_range.
     ls_package_range-option = 'CP'.
-    ls_package_range-low    = '$ABAPGIT*'.
+    ls_package_range-low    = '$ABAPGIT_*'.
     APPEND ls_package_range TO lt_package_range.
     ls_package_range-low    = '/MBTOOLS/*'.
     APPEND ls_package_range TO lt_package_range.
@@ -589,6 +605,11 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
 
   METHOD zif_abapgit_exit~pre_calculate_repo_status.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~serialize_postprocess.
     RETURN.
   ENDMETHOD.
 
