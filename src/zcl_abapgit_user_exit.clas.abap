@@ -599,7 +599,13 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
   METHOD zif_abapgit_exit~on_event.
 
-    rs_handled = zcl_abaplint_abapgit_ext_exit=>get_instance( )->on_event( ii_event ).
+    IF rs_handled IS INITIAL.
+      rs_handled = zcl_abaplint_abapgit_ext_exit=>get_instance( )->on_event( ii_event ).
+    ENDIF.
+
+    IF rs_handled IS INITIAL.
+      rs_handled = zcl_markdown_abapgit_ext_exit=>get_instance( )->on_event( ii_event ).
+    ENDIF.
 
   ENDMETHOD.
 
@@ -622,6 +628,10 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
   METHOD zif_abapgit_exit~wall_message_repo.
 
     zcl_abaplint_abapgit_ext_exit=>get_instance( )->wall_message_repo(
+      is_repo_meta = is_repo_meta
+      ii_html      = ii_html ).
+
+    zcl_markdown_abapgit_ext_exit=>get_instance( )->wall_message_repo(
       is_repo_meta = is_repo_meta
       ii_html      = ii_html ).
 

@@ -1,6 +1,4 @@
-CLASS zcl_abapgit_user_exit DEFINITION
-  FINAL
-  CREATE PUBLIC.
+CLASS zcl_abapgit_user_exit DEFINITION.
 
   PUBLIC SECTION.
     INTERFACES:
@@ -703,9 +701,7 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * | [!CX!] ZCX_ABAPGIT_EXCEPTION
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~on_event.
-
-    rs_handled = zcl_abaplint_abapgit_ext_exit=>get_instance( )->on_event( ii_event ).
-
+    RETURN.
   ENDMETHOD.
 
 
@@ -751,10 +747,6 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * | [--->] II_HTML                        TYPE REF TO ZIF_ABAPGIT_HTML
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~wall_message_repo.
-
-    zcl_abaplint_abapgit_ext_exit=>get_instance( )->wall_message_repo(
-      is_repo_meta = is_repo_meta
-      ii_html      = ii_html ).
-
+    RETURN.
   ENDMETHOD.
 ENDCLASS.
