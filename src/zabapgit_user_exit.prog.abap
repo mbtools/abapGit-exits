@@ -26,11 +26,16 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD fix_types_indent.
 
+    DATA lv_fix_next TYPE abap_bool.
+    DATA lv_types_indent TYPE sy-fdpos.
+
+    FIELD-SYMBOLS <ls_code> TYPE any.
+
     rt_code = it_code.
-    DATA(lv_fix_next) = abap_false.
-    LOOP AT rt_code ASSIGNING FIELD-SYMBOL(<ls_code>).
+    lv_fix_next = abap_false.
+    LOOP AT rt_code ASSIGNING <ls_code>.
       IF <ls_code> CS 'TYPES:' AND <ls_code>(1) <> '*' AND lv_fix_next = abap_false.
-        DATA(lv_types_indent) = sy-fdpos.
+        lv_types_indent = sy-fdpos.
       ENDIF.
       IF ( <ls_code> CS 'INCLUDE TYPE' OR <ls_code> CS 'INCLUDE STRUCTURE' ) AND lv_types_indent > 0.
         lv_fix_next = abap_true.
