@@ -1,8 +1,9 @@
 CLASS zcl_abapgit_user_exit DEFINITION.
 
   PUBLIC SECTION.
-    INTERFACES:
-      zif_abapgit_exit.
+
+    INTERFACES zif_abapgit_exit.
+
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -57,7 +58,7 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * | [--->] IV_REPO_URL                    TYPE        CSEQUENCE
 * | [--->] IV_REPO_NAME                   TYPE        CSEQUENCE
 * | [--->] IV_REPO_KEY                    TYPE        CSEQUENCE
-* | [--->] IV_COMMIT_HASH                 TYPE        ZIF_ABAPGIT_DEFINITIONS=>TY_SHA1
+* | [--->] IV_COMMIT_HASH                 TYPE        ZIF_ABAPGIT_GIT_DEFINITIONS=>TY_SHA1
 * | [<-->] CV_DISPLAY_URL                 TYPE        CSEQUENCE
 * | [!CX!] ZCX_ABAPGIT_EXCEPTION
 * +--------------------------------------------------------------------------------------</SIGNATURE>
@@ -131,6 +132,41 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CHANGE_SUPPORTED_DATA_OBJECTS
+* +-------------------------------------------------------------------------------------------------+
+* | [<-->] CT_OBJECTS                     TYPE        ZIF_ABAPGIT_DATA_SUPPORTER=>TY_OBJECTS
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~change_supported_data_objects.
+
+    DATA ls_object LIKE LINE OF ct_objects.
+
+    ls_object-type = 'TABU'.
+    ls_object-name = 'RSADM*'.
+    INSERT ls_object INTO TABLE ct_objects.
+    ls_object-type = 'TABU'.
+    ls_object-name = '/MBTOOLS/*'.
+    INSERT ls_object INTO TABLE ct_objects.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CHANGE_SUPPORTED_OBJECT_TYPES
+* +-------------------------------------------------------------------------------------------------+
+* | [<-->] CT_TYPES                       TYPE        TY_OBJECT_TYPES
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~change_supported_object_types.
+
+    DATA lv_type LIKE LINE OF ct_types.
+
+    " Support for apm
+    lv_type = 'ZAPM'.
+    INSERT lv_type INTO TABLE ct_types.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~CHANGE_TADIR
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IV_PACKAGE                     TYPE        DEVCLASS
@@ -154,8 +190,6 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
     DATA:
       lv_host        TYPE string,
       lv_destination TYPE rfcdest.
-
-*    RETURN. ">>>>>
 
     lv_host = zcl_abapgit_url=>host( iv_url ).
 
@@ -205,14 +239,13 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~custom_serialize_abap_clif.
 
+    RETURN. ">>>>>
 
     DATA:
       ls_settings     TYPE rseumod,
       ls_settings_tmp TYPE rseumod,
       lt_code         TYPE rswsourcet,
       lt_code_pp      TYPE rswsourcet.
-
-    RETURN. ">>>>>
 
     " lowercase setting:
     " space = upper case
@@ -645,6 +678,30 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~DETERMINE_TRANSPORT_REQUEST
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IO_REPO                        TYPE REF TO ZCL_ABAPGIT_REPO
+* | [--->] IV_TRANSPORT_TYPE              TYPE        ZIF_ABAPGIT_DEFINITIONS=>TY_TRANSPORT_TYPE
+* | [<-->] CV_TRANSPORT_REQUEST           TYPE        TRKORR
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~determine_transport_request.
+    RETURN.
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~ENHANCE_REPO_TOOLBAR
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IO_MENU                        TYPE REF TO ZCL_ABAPGIT_HTML_TOOLBAR
+* | [--->] IV_KEY                         TYPE        ZIF_ABAPGIT_PERSISTENCE=>TY_VALUE
+* | [--->] IV_ACT                         TYPE        STRING
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~enhance_repo_toolbar.
+    RETURN.
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
 * | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~GET_CI_TESTS
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IV_OBJECT                      TYPE        TADIR-OBJECT
@@ -706,7 +763,15 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * | [!CX!] ZCX_ABAPGIT_EXCEPTION
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~on_event.
-    RETURN.
+
+    IF rs_handled IS INITIAL.
+      rs_handled = zcl_abaplint_abapgit_ext_exit=>get_instance( )->on_event( ii_event ).
+    ENDIF.
+
+    IF rs_handled IS INITIAL.
+      rs_handled = zcl_markdown_abapgit_ext_exit=>get_instance( )->on_event( ii_event ).
+    ENDIF.
+
   ENDMETHOD.
 
 
@@ -715,7 +780,7 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IS_REPO_META                   TYPE        ZIF_ABAPGIT_PERSISTENCE=>TY_REPO
 * | [<-->] CT_LOCAL                       TYPE        ZIF_ABAPGIT_DEFINITIONS=>TY_FILES_ITEM_TT
-* | [<-->] CT_REMOTE                      TYPE        ZIF_ABAPGIT_DEFINITIONS=>TY_FILES_TT
+* | [<-->] CT_REMOTE                      TYPE        ZIF_ABAPGIT_GIT_DEFINITIONS=>TY_FILES_TT
 * | [!CX!] ZCX_ABAPGIT_EXCEPTION
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~pre_calculate_repo_status.
@@ -731,6 +796,19 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * | [<-->] CT_FILES                       TYPE        ZIF_ABAPGIT_DEFINITIONS=>TY_FILES_ITEM_TT
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~serialize_postprocess.
+    RETURN.
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_ABAPGIT_USER_EXIT->ZIF_ABAPGIT_EXIT~VALIDATE_BEFORE_PUSH
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IS_COMMENT                     TYPE        ZIF_ABAPGIT_GIT_DEFINITIONS=>TY_COMMENT
+* | [--->] IO_STAGE                       TYPE REF TO ZCL_ABAPGIT_STAGE
+* | [--->] IO_REPO                        TYPE REF TO ZCL_ABAPGIT_REPO_ONLINE
+* | [!CX!] ZCX_ABAPGIT_EXCEPTION
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD zif_abapgit_exit~validate_before_push.
     RETURN.
   ENDMETHOD.
 
@@ -752,6 +830,14 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * | [--->] II_HTML                        TYPE REF TO ZIF_ABAPGIT_HTML
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~wall_message_repo.
-    RETURN.
+
+    zcl_abaplint_abapgit_ext_exit=>get_instance( )->wall_message_repo(
+      is_repo_meta = is_repo_meta
+      ii_html      = ii_html ).
+
+    zcl_markdown_abapgit_ext_exit=>get_instance( )->wall_message_repo(
+      is_repo_meta = is_repo_meta
+      ii_html      = ii_html ).
+
   ENDMETHOD.
 ENDCLASS.

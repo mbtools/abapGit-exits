@@ -1,10 +1,11 @@
 CLASS zcl_abapgit_user_exit DEFINITION
   PUBLIC
-  CREATE PUBLIC .
+  CREATE PUBLIC.
 
   PUBLIC SECTION.
 
-    INTERFACES zif_abapgit_exit .
+    INTERFACES zif_abapgit_exit.
+
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -82,6 +83,31 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_exit~change_supported_data_objects.
+
+    DATA ls_object LIKE LINE OF ct_objects.
+
+    ls_object-type = 'TABU'.
+    ls_object-name = 'RSADM*'.
+    INSERT ls_object INTO TABLE ct_objects.
+    ls_object-type = 'TABU'.
+    ls_object-name = '/MBTOOLS/*'.
+    INSERT ls_object INTO TABLE ct_objects.
+
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~change_supported_object_types.
+
+    DATA lv_type LIKE LINE OF ct_types.
+
+    " Support for apm
+    lv_type = 'ZAPM'.
+    INSERT lv_type INTO TABLE ct_types.
+
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_exit~change_tadir.
     RETURN.
   ENDMETHOD.
@@ -92,8 +118,6 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
     DATA:
       lv_host        TYPE string,
       lv_destination TYPE rfcdest.
-
-* RETURN.
 
     lv_host = zcl_abapgit_url=>host( iv_url ).
 
@@ -134,6 +158,8 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
 
   METHOD zif_abapgit_exit~custom_serialize_abap_clif.
+
+    RETURN. ">>>>>
 
     DATA:
       ls_settings     TYPE rseumod,
@@ -565,6 +591,16 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_abapgit_exit~determine_transport_request.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~enhance_repo_toolbar.
+    RETURN.
+  ENDMETHOD.
+
+
   METHOD zif_abapgit_exit~get_ci_tests.
 
     " Return the name of repos and their clone URL
@@ -621,6 +657,11 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 
 
   METHOD zif_abapgit_exit~serialize_postprocess.
+    RETURN.
+  ENDMETHOD.
+
+
+  METHOD zif_abapgit_exit~validate_before_push.
     RETURN.
   ENDMETHOD.
 
