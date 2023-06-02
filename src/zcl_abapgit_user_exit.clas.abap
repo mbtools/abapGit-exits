@@ -1,6 +1,6 @@
 CLASS zcl_abapgit_user_exit DEFINITION
   PUBLIC
-  INHERITING FROM zcl_abapgit_exit_caller
+  INHERITING FROM zcl_abapgit_user_exit_factory
   CREATE PUBLIC.
 
   PUBLIC SECTION.

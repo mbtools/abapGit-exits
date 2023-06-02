@@ -1,11 +1,11 @@
 CLASS zcl_abapgit_user_exit_client DEFINITION
   PUBLIC
-  INHERITING FROM zcl_abapgit_exit_super
+  INHERITING FROM zcl_abapgit_user_exit_super
   CREATE PUBLIC.
 
   PUBLIC SECTION.
 
-    METHODS zif_abapgit_exit~create_http_client REDEFINITION.
+    METHODS zif_abapgit_user_exit~create_http_client REDEFINITION.
 
   PROTECTED SECTION.
   PRIVATE SECTION.
@@ -16,7 +16,7 @@ ENDCLASS.
 CLASS zcl_abapgit_user_exit_client IMPLEMENTATION.
 
 
-  METHOD zif_abapgit_exit~create_http_client.
+  METHOD zif_abapgit_user_exit~create_http_client.
 
     DATA:
       lv_host        TYPE string,

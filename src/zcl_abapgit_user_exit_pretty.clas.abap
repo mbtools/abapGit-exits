@@ -1,12 +1,12 @@
 CLASS zcl_abapgit_user_exit_pretty DEFINITION
   PUBLIC
-  INHERITING FROM zcl_abapgit_exit_super
+  INHERITING FROM zcl_abapgit_user_exit_super
   FINAL
   CREATE PUBLIC.
 
   PUBLIC SECTION.
 
-    METHODS zif_abapgit_exit~custom_serialize_abap_clif REDEFINITION.
+    METHODS zif_abapgit_user_exit~custom_serialize_abap_clif REDEFINITION.
 
   PROTECTED SECTION.
   PRIVATE SECTION.
@@ -51,7 +51,7 @@ CLASS zcl_abapgit_user_exit_pretty IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_exit~custom_serialize_abap_clif.
+  METHOD zif_abapgit_user_exit~custom_serialize_abap_clif.
 
     RETURN. ">>>>>
 

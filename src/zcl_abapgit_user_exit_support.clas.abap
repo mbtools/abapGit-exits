@@ -1,13 +1,13 @@
 CLASS zcl_abapgit_user_exit_support DEFINITION
   PUBLIC
-  INHERITING FROM zcl_abapgit_exit_super
+  INHERITING FROM zcl_abapgit_user_exit_super
   CREATE PUBLIC.
 
   PUBLIC SECTION.
 
     METHODS:
-      zif_abapgit_exit~change_supported_data_objects REDEFINITION,
-      zif_abapgit_exit~change_supported_object_types REDEFINITION.
+      zif_abapgit_user_exit~change_supported_data_objects REDEFINITION,
+      zif_abapgit_user_exit~change_supported_object_types REDEFINITION.
 
   PROTECTED SECTION.
   PRIVATE SECTION.
@@ -18,7 +18,7 @@ ENDCLASS.
 CLASS zcl_abapgit_user_exit_support IMPLEMENTATION.
 
 
-  METHOD zif_abapgit_exit~change_supported_data_objects.
+  METHOD zif_abapgit_user_exit~change_supported_data_objects.
 
     DATA ls_object LIKE LINE OF ct_objects.
 
@@ -32,7 +32,7 @@ CLASS zcl_abapgit_user_exit_support IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD zif_abapgit_exit~change_supported_object_types.
+  METHOD zif_abapgit_user_exit~change_supported_object_types.
 
     DATA lv_type LIKE LINE OF ct_types.
 
