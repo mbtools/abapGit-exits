@@ -365,7 +365,7 @@ CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
 
       CLEAR lv_eof_def.
       LOOP AT lt_source_temp ASSIGNING <source>.
-        IF <source> CP '"!*'.
+        IF <source> CP '"!*' OR ( strlen( <source> ) > 1 AND <source>(1) = '*' ).
           DELETE lt_source_temp INDEX sy-tabix.
         ELSE.
           EXIT.
