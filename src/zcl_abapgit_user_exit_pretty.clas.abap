@@ -6,7 +6,10 @@ CLASS zcl_abapgit_user_exit_pretty DEFINITION
 
   PUBLIC SECTION.
 
-    METHODS zif_abapgit_user_exit~custom_serialize_abap_clif REDEFINITION.
+    METHODS zif_abapgit_user_exit~custom_serialize_abap_clif
+      REDEFINITION.
+    METHODS zif_abapgit_user_exit~pre_calculate_repo_status
+      REDEFINITION.
 
   PROTECTED SECTION.
   PRIVATE SECTION.
@@ -15,113 +18,39 @@ CLASS zcl_abapgit_user_exit_pretty DEFINITION
       IMPORTING
         !it_code       TYPE rswsourcet
       RETURNING
-        VALUE(rt_code) TYPE rswsourcet.
+        value(rt_code) TYPE rswsourcet.
+
+    METHODS fix_source_code_file
+      CHANGING
+        !cv_data       TYPE xstring
+      RAISING
+        zcx_abapgit_exception.
+
+    METHODS fix_source_code
+      IMPORTING
+        !iv_options    TYPE string
+        !it_code       TYPE rswsourcet
+      RETURNING
+        value(rt_code) TYPE rswsourcet
+      RAISING
+        zcx_abapgit_exception.
 
 ENDCLASS.
 
 
 
-CLASS zcl_abapgit_user_exit_pretty IMPLEMENTATION.
+CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
 
 
-  METHOD fix_types_indent.
+  METHOD fix_source_code.
 
-    DATA lv_fix_next TYPE abap_bool.
-    DATA lv_types_indent TYPE sy-fdpos.
-
-    FIELD-SYMBOLS <ls_code> TYPE any.
-
-    rt_code = it_code.
-    lv_fix_next = abap_false.
-    LOOP AT rt_code ASSIGNING <ls_code>.
-      IF <ls_code> CS 'TYPES:' AND <ls_code>(1) <> '*' AND lv_fix_next = abap_false.
-        lv_types_indent = sy-fdpos.
-      ENDIF.
-      IF ( <ls_code> CS 'INCLUDE TYPE' OR <ls_code> CS 'INCLUDE STRUCTURE' ) AND lv_types_indent > 0.
-        lv_fix_next = abap_true.
-      ELSEIF lv_fix_next = abap_true.
-        SHIFT <ls_code> LEFT DELETING LEADING space.
-        SHIFT <ls_code> RIGHT BY lv_types_indent PLACES.
-        CLEAR lv_fix_next.
-      ELSE.
-        CLEAR lv_fix_next.
-      ENDIF.
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD zif_abapgit_user_exit~custom_serialize_abap_clif.
-
-    RETURN. ">>>>>
-
-    DATA:
-      ls_settings     TYPE rseumod,
-      ls_settings_tmp TYPE rseumod,
-      lt_code         TYPE rswsourcet,
-      lt_code_pp      TYPE rswsourcet.
-
-    " lowercase setting:
-    " space = upper case
-    " X     = lower case
-    " G     = upper case keyword
-    " L     = lower case keyword
-    " A     = auto-detect (if supported)
-    " indent setting:
-    " 0 = no indent
-    " 2 = with indent
-    IF is_class_key-clsname CP '/MBTOOLS/*' AND is_class_key-clsname NS 'AJSON' AND is_class_key-clsname NS 'STRING_MAP'.
-      CALL FUNCTION 'RS_WORKBENCH_CUSTOMIZING'
-        EXPORTING
-          suppress_dialog = abap_true
-        IMPORTING
-          setting         = ls_settings.
-
-      ls_settings_tmp = ls_settings.
-      ls_settings_tmp-lowercase = 'G'.
-      ls_settings_tmp-indent    = 2.
-
-      CALL FUNCTION 'RS_WORKBENCH_CUSTOMIZING'
-        EXPORTING
-          suppress_dialog = abap_true
-          setting_import  = ls_settings_tmp.
-    ELSE.
-      RETURN.
-    ENDIF.
-
-    IF it_source IS NOT INITIAL.
-      lt_code[] = it_source.
-
-      CALL FUNCTION 'PRETTY_PRINTER'
-        EXPORTING
-          inctoo             = abap_false
-        TABLES
-          ntext              = lt_code_pp
-          otext              = lt_code
-        EXCEPTIONS
-          enqueue_table_full = 1
-          include_enqueued   = 2
-          include_readerror  = 3
-          include_writeerror = 4
-          OTHERS             = 5.
-      IF sy-subrc = 0.
-        rt_source = fix_types_indent( lt_code_pp ).
-      ENDIF.
-
-      CALL FUNCTION 'RS_WORKBENCH_CUSTOMIZING'
-        EXPORTING
-          suppress_dialog = abap_true
-          setting_import  = ls_settings.
-
-      RETURN.
-    ENDIF.
-
+    " iv_options:
     " 1) Remove signatures and default comments
     " 2) Remove empty class sections
     " 3) Change class identifier to lower case
     " 4) Re-order method implementations
-    CONSTANTS:
-      c_options TYPE string VALUE '123'.
+    " 5) Remove comments before class definition
+    " 6) Replace case of value()
 
     CONSTANTS:
       c_publ           TYPE string VALUE '*"* public components of class',
@@ -166,9 +95,9 @@ CLASS zcl_abapgit_user_exit_pretty IMPLEMENTATION.
       lv_tabix         TYPE sy-tabix,
       lv_tabix_section TYPE sy-tabix,
       lv_eof_def       TYPE sy-tabix,
-      lt_source        LIKE rt_source,
-      lt_source_temp   LIKE rt_source,
-      lv_source        LIKE LINE OF rt_source,
+      lt_source        LIKE rt_code,
+      lt_source_temp   LIKE rt_code,
+      lv_source        LIKE LINE OF rt_code,
       ls_inheritance   TYPE ty_inheritance,
       lt_inheritance   TYPE TABLE OF ty_inheritance,
       ls_clif          TYPE ty_clif,
@@ -186,61 +115,14 @@ CLASS zcl_abapgit_user_exit_pretty IMPLEMENTATION.
       <method>      TYPE ty_method,
       <method_incl> TYPE LINE OF seop_methods_w_include.
 
-    RETURN. ">>>>>
-
-    IF c_options IS INITIAL.
+    IF iv_options IS INITIAL.
       RETURN.
     ENDIF.
 
-    lv_clsname = is_class_key-clsname.
-
-    " Only for some packages / super packages
-    ls_package_range-sign   = 'I'.
-    ls_package_range-option = 'EQ'.
-    ls_package_range-low    = '$ABAPGIT'.
-    APPEND ls_package_range TO lt_package_range.
-    ls_package_range-option = 'CP'.
-    ls_package_range-low    = '$ABAPGIT_*'.
-    APPEND ls_package_range TO lt_package_range.
-    ls_package_range-low    = '/MBTOOLS/*'.
-    APPEND ls_package_range TO lt_package_range.
-
-    lv_obj_name = is_class_key-clsname.
-
-    lv_package = zcl_abapgit_factory=>get_tadir( )->get_object_package(
-      iv_object   = 'CLAS'
-      iv_obj_name = lv_obj_name ).
-
-    IF lv_package IS INITIAL.
-      RETURN. " Probably INTF instead of CLAS
-    ENDIF.
-
-    li_package = zcl_abapgit_factory=>get_sap_package( lv_package ).
-    lt_super_package = li_package->list_superpackages( ).
-
-    LOOP AT lt_super_package TRANSPORTING NO FIELDS WHERE table_line IN lt_package_range.
-      EXIT.
-    ENDLOOP.
-    IF sy-subrc <> 0.
-      RETURN. " Normal serialization
-    ENDIF.
-
-    " Get existing source
-    CREATE OBJECT lo_source
-      EXPORTING
-        clskey             = is_class_key
-      EXCEPTIONS
-        class_not_existing = 1
-        OTHERS             = 2.
-    IF sy-subrc <> 0.
-      zcx_abapgit_exception=>raise( |Error from CL_OO_SOURCE. Subrc = { sy-subrc }| ).
-    ENDIF.
-
-    lo_source->read( 'A' ).
-    lt_source = lo_source->get_old_source( ).
+    lt_source = it_code.
 
     " 1) Remove signatures and default comments
-    IF c_options CA '1'.
+    IF iv_options CA '1'.
       CONCATENATE '* <SIGNATURE>------------------------------------'
         '---------------------------------------------------+'
         INTO lv_begin.
@@ -265,12 +147,12 @@ CLASS zcl_abapgit_user_exit_pretty IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
 
-      rt_source = lt_source_temp.
+      rt_code = lt_source_temp.
     ENDIF.
 
     " 2) Remove empty class sections
-    IF c_options CA '2'.
-      lt_source_temp = rt_source.
+    IF iv_options CA '2'.
+      lt_source_temp = rt_code.
 
       DO 3 TIMES.
         CASE sy-index.
@@ -308,12 +190,12 @@ CLASS zcl_abapgit_user_exit_pretty IMPLEMENTATION.
         ENDIF.
       ENDDO.
 
-      rt_source = lt_source_temp.
+      rt_code = lt_source_temp.
     ENDIF.
 
     " 3) Change class identifier to lower case
-    IF c_options CA '3'.
-      lt_source_temp = rt_source.
+    IF iv_options CA '3'.
+      lt_source_temp = rt_code.
 
       CLEAR lv_eof_def.
       LOOP AT lt_source_temp ASSIGNING <source>
@@ -328,17 +210,17 @@ CLASS zcl_abapgit_user_exit_pretty IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
 
-      rt_source = lt_source_temp.
+      rt_code = lt_source_temp.
     ENDIF.
 
     " 4) Re-order method implementations
-    IF c_options CA '4'.
-      lt_source_temp = rt_source.
+    IF iv_options CA '4'.
+      lt_source_temp = rt_code.
 
-      CLEAR: rt_source.
+      CLEAR: rt_code.
 
       LOOP AT lt_source_temp ASSIGNING <source> TO lv_eof_def.
-        INSERT <source> INTO TABLE rt_source.
+        INSERT <source> INTO TABLE rt_code.
       ENDLOOP.
 
       " Classes in order of inheritance
@@ -455,27 +337,202 @@ CLASS zcl_abapgit_user_exit_pretty IMPLEMENTATION.
         " Get coding for include
         READ REPORT <method_incl>-incname INTO lt_source.
         IF sy-subrc <> 0.
-          zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, include { <method_incl>-incname }| ).
+          zcx_abapgit_exception=>raise( |Error in FIX_SOURCE_CODE, include { <method_incl>-incname }| ).
         ENDIF.
 
         CLEAR lv_source.
-        INSERT lv_source INTO TABLE rt_source.
-        INSERT lv_source INTO TABLE rt_source.
-        INSERT LINES OF lt_source INTO TABLE rt_source.
+        INSERT lv_source INTO TABLE rt_code.
+        INSERT lv_source INTO TABLE rt_code.
+        INSERT LINES OF lt_source INTO TABLE rt_code.
 
         ADD 1 TO lv_count_incl.
       ENDLOOP.
 
       IF lv_count_incl <> lines( lt_method_incl ).
         BREAK-POINT.
-        zcx_abapgit_exception=>raise( |Error in CUSTOM_SERIALIZE_ABAP_CLIF, number of implementations | &&
+        zcx_abapgit_exception=>raise( |Error in FIX_SOURCE_CODE, number of implementations | &&
           |{ lv_count_incl } vs. { lines( lt_method_incl ) }| ).
       ENDIF.
 
       lv_source = 'ENDCLASS.'.
-      INSERT lv_source INTO TABLE rt_source.
+      INSERT lv_source INTO TABLE rt_code.
 
     ENDIF.
 
-  ENDMETHOD.
+    " 5) Remove comments before class definition
+    IF iv_options CA '5'.
+      lt_source_temp = rt_code.
+
+      CLEAR lv_eof_def.
+      LOOP AT lt_source_temp ASSIGNING <source>.
+        IF <source> CP '"!*'.
+          DELETE lt_source_temp INDEX sy-tabix.
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+
+      rt_code = lt_source_temp.
+    ENDIF.
+
+    " 6) Replace case of value()
+    IF iv_options CA '6'.
+      lt_source_temp = rt_code.
+
+      LOOP AT lt_source_temp ASSIGNING <source>
+        WHERE table_line CS 'VALUE('.
+
+        FIND REGEX '^\s*value(.+)' IN <source>.
+        IF sy-subrc = 0.
+          REPLACE 'value(' IN <source> WITH 'VALUE('.
+        ENDIF.
+      ENDLOOP.
+
+      rt_code = lt_source_temp.
+    ENDIF.
+
+  ENDMETHOD.                    "fix_source_code
+
+
+  METHOD fix_source_code_file.
+
+    DATA:
+      lv_code TYPE string,
+      lt_code TYPE rswsourcet,
+      lt_new  TYPE rswsourcet.
+
+    lv_code = zcl_abapgit_convert=>xstring_to_string_utf8( cv_data ).
+
+    SPLIT lv_code AT cl_abap_char_utilities=>newline INTO TABLE lt_code.
+
+    lt_new = fix_source_code(
+      iv_options = '12356'
+      it_code    = lt_code ).
+
+    CONCATENATE LINES OF lt_new INTO lv_code SEPARATED BY cl_abap_char_utilities=>newline.
+
+    cv_data = zcl_abapgit_convert=>string_to_xstring_utf8( lv_code ).
+
+  ENDMETHOD.                    "fix_source_code_file
+
+
+  METHOD fix_types_indent.
+
+    DATA lv_fix_next TYPE abap_bool.
+    DATA lv_types_indent TYPE sy-fdpos.
+
+    FIELD-SYMBOLS <ls_code> TYPE any.
+
+    rt_code = it_code.
+    lv_fix_next = abap_false.
+    LOOP AT rt_code ASSIGNING <ls_code>.
+      IF <ls_code> CS 'TYPES:' AND <ls_code>(1) <> '*' AND lv_fix_next = abap_false.
+        lv_types_indent = sy-fdpos.
+      ENDIF.
+      IF ( <ls_code> CS 'INCLUDE TYPE' OR <ls_code> CS 'INCLUDE STRUCTURE' ) AND lv_types_indent > 0.
+        lv_fix_next = abap_true.
+      ELSEIF lv_fix_next = abap_true.
+        SHIFT <ls_code> LEFT DELETING LEADING space.
+        SHIFT <ls_code> RIGHT BY lv_types_indent PLACES.
+        CLEAR lv_fix_next.
+      ELSE.
+        CLEAR lv_fix_next.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.                    "fix_types_indent
+
+
+  METHOD zif_abapgit_user_exit~custom_serialize_abap_clif.
+
+    RETURN. ">>>>>
+
+    DATA:
+      ls_settings     TYPE rseumod,
+      ls_settings_tmp TYPE rseumod,
+      lt_code         TYPE rswsourcet,
+      lt_code_pp      TYPE rswsourcet.
+
+    " lowercase setting:
+    " space = upper case
+    " X     = lower case
+    " G     = upper case keyword
+    " L     = lower case keyword
+    " A     = auto-detect (if supported)
+    " indent setting:
+    " 0 = no indent
+    " 2 = with indent
+    IF is_class_key-clsname CP '/MBTOOLS/*' AND is_class_key-clsname NS 'AJSON' AND is_class_key-clsname NS 'STRING_MAP'.
+      CALL FUNCTION 'RS_WORKBENCH_CUSTOMIZING'
+        EXPORTING
+          suppress_dialog = abap_true
+        IMPORTING
+          setting         = ls_settings.
+
+      ls_settings_tmp = ls_settings.
+      ls_settings_tmp-lowercase = 'G'.
+      ls_settings_tmp-indent    = 2.
+
+      CALL FUNCTION 'RS_WORKBENCH_CUSTOMIZING'
+        EXPORTING
+          suppress_dialog = abap_true
+          setting_import  = ls_settings_tmp.
+    ELSE.
+      RETURN.
+    ENDIF.
+
+    IF it_source IS NOT INITIAL.
+      lt_code[] = it_source.
+
+      CALL FUNCTION 'PRETTY_PRINTER'
+        EXPORTING
+          inctoo             = abap_false
+        TABLES
+          ntext              = lt_code_pp
+          otext              = lt_code
+        EXCEPTIONS
+          enqueue_table_full = 1
+          include_enqueued   = 2
+          include_readerror  = 3
+          include_writeerror = 4
+          OTHERS             = 5.
+      IF sy-subrc = 0.
+        rt_source = fix_types_indent( lt_code_pp ).
+      ENDIF.
+
+      CALL FUNCTION 'RS_WORKBENCH_CUSTOMIZING'
+        EXPORTING
+          suppress_dialog = abap_true
+          setting_import  = ls_settings.
+
+      RETURN.
+    ENDIF.
+
+  ENDMETHOD.                    "zif_abapgit_user_exit~custom_serialize_abap_clif
+
+
+  METHOD zif_abapgit_user_exit~pre_calculate_repo_status.
+
+*    IF is_repo_meta-url NS 'abapGit/abapGit'.
+*      RETURN.
+*    ENDIF.
+
+    FIELD-SYMBOLS:
+      <ls_local>  LIKE LINE OF ct_local,
+      <ls_remote> LIKE LINE OF ct_remote,
+      <ls_file>   LIKE <ls_local>-file.
+
+    " Local class files
+    LOOP AT ct_local ASSIGNING <ls_local> WHERE item-obj_type = 'CLAS' AND file-filename CP '*.clas.abap'.
+      fix_source_code_file( CHANGING cv_data = <ls_local>-file-data ).
+      <ls_local>-file-sha1 = zcl_abapgit_hash=>sha1_raw( <ls_local>-file-data ).
+    ENDLOOP.
+
+    " Remote class files
+    LOOP AT ct_remote ASSIGNING <ls_remote> WHERE filename CP '*.clas.abap'.
+      fix_source_code_file( CHANGING cv_data = <ls_remote>-data ).
+      <ls_remote>-sha1 = zcl_abapgit_hash=>sha1_raw( <ls_remote>-data ).
+    ENDLOOP.
+
+  ENDMETHOD.                    "zif_abapgit_user_exit~pre_calculate_repo_status
 ENDCLASS.
