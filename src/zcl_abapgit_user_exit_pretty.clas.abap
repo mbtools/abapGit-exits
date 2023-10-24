@@ -51,6 +51,7 @@ CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
     " 4) Re-order method implementations
     " 5) Remove comments before class definition
     " 6) Replace case of value()
+    " 7) Remove comments after ENDMETHOD and ENDCLASS
 
     CONSTANTS:
       c_publ           TYPE string VALUE '*"* public components of class',
@@ -391,7 +392,24 @@ CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
       rt_code = lt_source_temp.
     ENDIF.
 
-  ENDMETHOD.                    "fix_source_code
+    " 7) Remove comments after ENDMETHOD and ENDCLASS
+    IF iv_options CA '7'.
+      lt_source_temp = rt_code.
+
+      LOOP AT lt_source_temp ASSIGNING <source>
+        WHERE table_line CP 'ENDMETHOD.*' OR table_line CP 'ENDCLASS.*'.
+
+        FIND '"' IN <source>.
+        IF sy-subrc = 0.
+          <source> = <source>(sy-fdpos).
+        ENDIF.
+      ENDLOOP.
+
+      rt_code = lt_source_temp.
+    ENDIF.
+
+
+  ENDMETHOD.
 
 
   METHOD fix_source_code_file.
@@ -406,14 +424,14 @@ CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
     SPLIT lv_code AT cl_abap_char_utilities=>newline INTO TABLE lt_code.
 
     lt_new = fix_source_code(
-      iv_options = '12356'
+      iv_options = '123567'
       it_code    = lt_code ).
 
     CONCATENATE LINES OF lt_new INTO lv_code SEPARATED BY cl_abap_char_utilities=>newline.
 
     cv_data = zcl_abapgit_convert=>string_to_xstring_utf8( lv_code ).
 
-  ENDMETHOD.                    "fix_source_code_file
+  ENDMETHOD.
 
 
   METHOD fix_types_indent.
@@ -440,7 +458,7 @@ CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
       ENDIF.
     ENDLOOP.
 
-  ENDMETHOD.                    "fix_types_indent
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_user_exit~custom_serialize_abap_clif.
@@ -508,7 +526,7 @@ CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-  ENDMETHOD.                    "zif_abapgit_user_exit~custom_serialize_abap_clif
+  ENDMETHOD.
 
 
   METHOD zif_abapgit_user_exit~pre_calculate_repo_status.
@@ -534,5 +552,5 @@ CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
       <ls_remote>-sha1 = zcl_abapgit_hash=>sha1_raw( <ls_remote>-data ).
     ENDLOOP.
 
-  ENDMETHOD.                    "zif_abapgit_user_exit~pre_calculate_repo_status
+  ENDMETHOD.
 ENDCLASS.
