@@ -7,9 +7,9 @@ CLASS zcl_abapgit_user_exit_pretty DEFINITION
   PUBLIC SECTION.
 
     METHODS zif_abapgit_user_exit~custom_serialize_abap_clif
-      REDEFINITION.
+        REDEFINITION.
     METHODS zif_abapgit_user_exit~pre_calculate_repo_status
-      REDEFINITION.
+        REDEFINITION.
 
   PROTECTED SECTION.
   PRIVATE SECTION.
@@ -18,11 +18,11 @@ CLASS zcl_abapgit_user_exit_pretty DEFINITION
       IMPORTING
         !it_code       TYPE rswsourcet
       RETURNING
-        value(rt_code) TYPE rswsourcet.
+        VALUE(rt_code) TYPE rswsourcet.
 
     METHODS fix_source_code_file
       CHANGING
-        !cv_data       TYPE xstring
+        !cv_data TYPE xstring
       RAISING
         zcx_abapgit_exception.
 
@@ -31,7 +31,7 @@ CLASS zcl_abapgit_user_exit_pretty DEFINITION
         !iv_options    TYPE string
         !it_code       TYPE rswsourcet
       RETURNING
-        value(rt_code) TYPE rswsourcet
+        VALUE(rt_code) TYPE rswsourcet
       RAISING
         zcx_abapgit_exception.
 
@@ -39,7 +39,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
+CLASS zcl_abapgit_user_exit_pretty IMPLEMENTATION.
 
 
   METHOD fix_source_code.
@@ -531,9 +531,11 @@ CLASS ZCL_ABAPGIT_USER_EXIT_PRETTY IMPLEMENTATION.
 
   METHOD zif_abapgit_user_exit~pre_calculate_repo_status.
 
-*    IF is_repo_meta-url NS 'abapGit/abapGit'.
-*      RETURN.
-*    ENDIF.
+    RETURN. ">>>
+
+    IF is_repo_meta-url NS 'abapGit/abapGit'.
+      RETURN.
+    ENDIF.
 
     FIELD-SYMBOLS:
       <ls_local>  LIKE LINE OF ct_local,

@@ -856,6 +856,8 @@ CLASS zcl_abapgit_user_exit IMPLEMENTATION.
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD zif_abapgit_exit~pre_calculate_repo_status.
 
+     RETURN. ">>>
+
 *    IF is_repo_meta-url NS 'abapGit/abapGit'.
 *      RETURN.
 *    ENDIF.
